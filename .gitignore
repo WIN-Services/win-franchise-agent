@@ -1,0 +1,15 @@
+.env
+.DS_Store
+vector_store/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+ENV/
+frontend/node_modules/
+frontend/dist/
+frontend/.expo/
+data/processed_documents.json
