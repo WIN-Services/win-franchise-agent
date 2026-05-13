@@ -48,7 +48,7 @@ _THANKS_PATTERNS = re.compile(
 _GREETING_RESPONSE = (
     "👋 Hello! Welcome to WIN Home Inspection — one of North America's fastest-growing franchise brands.\n\n"
     "I'm your Franchise Assistant, here to help you explore the WIN opportunity. "
-    "You can ask me about:\n"
+    "I can help you with:\n"
     "  • 💰 Investment & fees\n"
     "  • 📋 Steps to become a franchise owner\n"
     "  • 🏠 What WIN Home Inspection does\n"
