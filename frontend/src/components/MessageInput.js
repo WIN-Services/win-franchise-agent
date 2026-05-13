@@ -21,7 +21,7 @@ const MessageInput = ({ onSend, isLoading }) => {
         onChangeText={setText}
         multiline
         maxHeight={100}
-        disabled={isLoading}
+        editable={!isLoading}
       />
       <TouchableOpacity 
         style={[styles.sendButton, (!text.trim() || isLoading) && styles.disabledButton]} 
