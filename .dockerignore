@@ -1,0 +1,25 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+env/
+.venv/
+.env
+
+# Local IDE configurations
+.vscode/
+.idea/
+
+# Frontend files (since they have their own Dockerfile and context)
+frontend/
+
+# Git
+.git
+.gitignore
+
+# System files
+.DS_Store
+thumbs.db
