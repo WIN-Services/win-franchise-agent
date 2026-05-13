@@ -7,5 +7,4 @@ dist/
 build/
 .vscode/
 .idea/
-vector_store/
-data/
+
