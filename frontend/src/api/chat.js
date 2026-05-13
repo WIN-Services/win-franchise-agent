@@ -2,7 +2,7 @@ import axios from 'axios';
 
 // For local testing on iOS simulator, localhost works.
 // For physical devices, replace with your computer's local IP (e.g., 192.168.1.XX)
-const BASE_URL = 'http://localhost:8000';
+const BASE_URL = 'http://localhost:9000';
 
 const api = axios.create({
   baseURL: BASE_URL,
