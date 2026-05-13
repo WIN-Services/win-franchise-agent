@@ -1,0 +1,29 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: win-franchise-backend
+    ports:
+      - "9000:9000"
+    env_file:
+      - .env
+    environment:
+      - PORT=9000
+      # If Langfuse is running on the host network, you can use your host IP or 'host.docker.internal'.
+      # Overriding default env here if needed:
+      # - LANGFUSE_BASE_URL=http://host.docker.internal:3000
+    volumes:
+      - ./vector_store:/app/vector_store
+    restart: always
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: win-franchise-frontend
+    ports:
+      - "9100:9100"
+    depends_on:
+      - backend
+    restart: always
