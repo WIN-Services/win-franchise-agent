@@ -133,12 +133,19 @@ def normalize_custom_page_elements(soup: BeautifulSoup):
                 if modal_body:
                     description = ' '.join(modal_body.get_text(separator=' ', strip=True).split())
             
-            # 2c. Extract amount from adjacent columns inside row section
+            # 2c. Extract amount by scanning forward in sequential DOM flow for the next price widget
             amount = ""
-            inner_section = exp.find_parent(class_='elementor-inner-section')
-            if inner_section:
-                for widget in inner_section.find_all(class_='elementor-heading-title'):
-                    txt = ' '.join(widget.get_text(strip=True).split())
+            scan_node = exp
+            while scan_node:
+                scan_node = scan_node.next_element
+                if not scan_node:
+                    break
+                # Break scan if we bump into the next label to prevent bleed-over
+                if hasattr(scan_node, 'get') and scan_node.get('class') and 'expenditure-text' in scan_node.get('class', []):
+                    break
+                # Identify next heading container holding a currency token
+                if hasattr(scan_node, 'get') and scan_node.get('class') and 'elementor-heading-title' in scan_node.get('class', []):
+                    txt = ' '.join(scan_node.get_text(strip=True).split())
                     if '$' in txt:
                         amount = txt
                         break

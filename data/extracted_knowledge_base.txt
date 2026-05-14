@@ -1169,11 +1169,11 @@ subsection:
 
 | Type of Expenditure | Amount | Description |
 | --- | --- | --- |
-| Initial Franchise Fee |  | Lowest franchise fee in the industry. You gain access to the highest rated national brand, proprietary systems and state-of-the-art technology, and industry’s largest support team who is ready to help you build a thriving business. |
-| Initial Equipment and Hardware |  | WIN is the only franchise offering in-house training and certification programs for 35+ services. This covers the cost of purchasing state-of-the-art tools for you to offer inspection services beyond a standard home inspection. Additionally, it includes devices and accessories that will help you run your business efficiently including a smartphone, laptop, tablet or desktop computer, if you don’t already own one. |
-| Marketing Toolkit and Business Launch |  | Includes marketing essentials for you to leave a lasting impression and grow your business — branded marketing materials (business cards and promotional items), apparel, swag, a customizable vehicle wrap, and a full suite of launch support including your customized website, business email, phone setup, and proprietary platform access. |
-| Insurance Premiums and Industry Dues |  | Covers the basics a business owner requires, for example, business and auto insurance policies, registering your business with the state, and, if applicable, state licensing costs for most states. |
-| Additional Funds |  | An estimate of additional expenses in the first three months of launching your business, such as basic accounting and legal support, and gas and mileage. |
+| Initial Franchise Fee | $18,900 - $21,000 | Lowest franchise fee in the industry. You gain access to the highest rated national brand, proprietary systems and state-of-the-art technology, and industry’s largest support team who is ready to help you build a thriving business. |
+| Initial Equipment and Hardware | $4,500 - $6,500 | WIN is the only franchise offering in-house training and certification programs for 35+ services. This covers the cost of purchasing state-of-the-art tools for you to offer inspection services beyond a standard home inspection. Additionally, it includes devices and accessories that will help you run your business efficiently including a smartphone, laptop, tablet or desktop computer, if you don’t already own one. |
+| Marketing Toolkit and Business Launch | $15,250 – $17,100 | Includes marketing essentials for you to leave a lasting impression and grow your business — branded marketing materials (business cards and promotional items), apparel, swag, a customizable vehicle wrap, and a full suite of launch support including your customized website, business email, phone setup, and proprietary platform access. |
+| Insurance Premiums and Industry Dues | $1,550 - $2,700 | Covers the basics a business owner requires, for example, business and auto insurance policies, registering your business with the state, and, if applicable, state licensing costs for most states. |
+| Additional Funds | $1,000 - $2,500 | An estimate of additional expenses in the first three months of launching your business, such as basic accounting and legal support, and gas and mileage. |
 
 The total initial investment to start your WIN Home Inspection franchise business is $41,200 to $49,800 . Ranked one of the best franchises under $50k, our franchise fee offers you unparalleled value, unlike what you’d find with any other franchise in our industry. With our highly advanced support system and the most comprehensive training platform included at no additional cost, you can generate multiple revenue streams and grow a profitable business 365 days a year. We recommend that interested candidates have at least one year of living expenses saved to fully focus on their business development during the initial growth phase. View the info icon to get a complete breakdown of the costs involved in starting your WIN Home Inspection franchise and learn the significant benefits you’ll enjoy as a franchise owner. If you have any questions, we encourage you to connect with our franchise partnerships team by filling out an interest form .
 
@@ -46082,6 +46082,48 @@ Get the latest news, tips, and tricks about the franchise and home inspection in
 ---
 source: website
 url_or_path: https://wini.com/franchise/faq-post/im-already-a-home-inspector-can-i-skip-the-training/
+section: Ready to Embark on an Exciting Journey with WIN?
+subsection: 
+---
+
+Take the first step toward personal and financial freedom by filling out the interest form. One of our franchise advocates will be in touch with you soon!
+
+
+---
+source: website
+url_or_path: https://wini.com/franchise/faq-post/what-kind-of-ongoing-support-will-i-receive-after-i-complete-the-training/
+section: Intro
+subsection: 
+---
+
+Unlock the Path to Your Dream Business Recession resistant business with 35+ Essential Services AI-driven automation to grow your business faster Ongoing training with real experts by your side Lowest cost with an all-inclusive model and no hidden fees Ranked #1 Home Inspection Company in the U.S. Your free consultation is one step away.
+
+Unlock the Path to Your Dream Business Your free consultation is one step away.
+
+
+---
+source: website
+url_or_path: https://wini.com/franchise/faq-post/what-kind-of-ongoing-support-will-i-receive-after-i-complete-the-training/
+section: What kind of ongoing support will I receive after I complete the training?
+subsection: 
+---
+
+After training, you’ll receive attentive, ongoing support through dedicated business coaches and marketing experts who will help you get your business set up and launched. We also offer support 22 hours a day / 6 days a week, 24/7 online resources, continuing education and a collaborative network of franchise partners to help you grow your business.
+
+
+---
+source: website
+url_or_path: https://wini.com/franchise/faq-post/what-kind-of-ongoing-support-will-i-receive-after-i-complete-the-training/
+section: Subscribe to the blog newsletter
+subsection: 
+---
+
+Get the latest news, tips, and tricks about the franchise and home inspection industries.
+
+
+---
+source: website
+url_or_path: https://wini.com/franchise/faq-post/what-kind-of-ongoing-support-will-i-receive-after-i-complete-the-training/
 section: Ready to Embark on an Exciting Journey with WIN?
 subsection: 
 ---
