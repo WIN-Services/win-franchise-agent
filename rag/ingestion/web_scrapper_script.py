@@ -165,6 +165,116 @@ def normalize_custom_page_elements(soup: BeautifulSoup):
                 new_table_soup = BeautifulSoup(table_str, 'html.parser')
                 target_header.insert_after(new_table_soup)
 
+    # 3. Normalize Icon Box widgets (used for feature grid items or bullet items)
+    # Structure: elementor-icon-box-wrapper -> title & description
+    icon_boxes = soup.find_all(class_="elementor-icon-box-wrapper")
+    for box in icon_boxes:
+        title_elem = box.find(class_="elementor-icon-box-title")
+        desc_elem = box.find(class_="elementor-icon-box-description")
+        
+        title_txt = ' '.join(title_elem.get_text(separator=' ', strip=True).split()) if title_elem else ""
+        desc_txt = ' '.join(desc_elem.get_text(separator=' ', strip=True).split()) if desc_elem else ""
+        
+        content_parts = []
+        if title_txt:
+            content_parts.append(title_txt)
+        if desc_txt:
+            content_parts.append(desc_txt)
+            
+        if content_parts:
+            combined_text = " - ".join(content_parts)
+            p_tag = soup.new_tag("p")
+            p_tag.string = combined_text
+            box.replace_with(p_tag)
+            
+    # 4. Normalize Testimonial widgets
+    # Structure: elementor-widget-testimonial -> content, name, job
+    testimonials = soup.find_all(class_="elementor-widget-testimonial")
+    for testimonial in testimonials:
+        content_elem = testimonial.find(class_="elementor-testimonial-content")
+        name_elem = testimonial.find(class_="elementor-testimonial-name")
+        job_elem = testimonial.find(class_="elementor-testimonial-job")
+        
+        content_txt = ' '.join(content_elem.get_text(separator=' ', strip=True).split()) if content_elem else ""
+        name_txt = ' '.join(name_elem.get_text(separator=' ', strip=True).split()) if name_elem else ""
+        job_txt = ' '.join(job_elem.get_text(separator=' ', strip=True).split()) if job_elem else ""
+        
+        if content_txt:
+            content_txt = content_txt.strip('"').strip('“').strip('”')
+            meta_parts = []
+            if name_txt:
+                meta_parts.append(name_txt)
+            if job_txt:
+                meta_parts.append(job_txt)
+                
+            full_testimonial = f'"{content_txt}"'
+            if meta_parts:
+                full_testimonial += f" — {', '.join(meta_parts)}"
+                
+            p_tag = soup.new_tag("p")
+            p_tag.string = full_testimonial
+            testimonial.replace_with(p_tag)
+
+    # 5. Normalize Elementor Visual Comparison Grids into real semantic tables
+    # Anchored by elements containing "Other Franchisors"
+    other_franchisors = soup.find_all(lambda tag: tag.get_text() and "Other Franchisors" in tag.get_text())
+    for other_f in other_franchisors:
+        # Trace upwards to find the outer parent section wrapper
+        curr = other_f
+        top_sec = None
+        while curr:
+            cls = curr.get('class', [])
+            if cls and 'elementor-top-section' in cls:
+                top_sec = curr
+                break
+            curr = curr.parent
+            if not curr or curr.name == 'html':
+                break
+                
+        if top_sec and top_sec.parent:
+            # Find inner sections acting as rows
+            inner_sections = top_sec.find_all(class_='elementor-inner-section')
+            comparison_rows_data = []
+            
+            for inner_row in inner_sections:
+                cols = inner_row.find_all(class_='elementor-column')
+                row_vals = []
+                for col in cols:
+                    txt = col.get_text(separator=' ', strip=True)
+                    img = col.find('img')
+                    
+                    if img and not txt:
+                        # If there's an image (like WIN logo) but no text, detect WIN
+                        alt = img.get('alt', '')
+                        src = img.get('src', '')
+                        if any(x in alt.lower() or x in src.lower() for x in ['win', 'logo']):
+                            row_vals.append("WIN Home Inspection")
+                    elif txt:
+                        row_vals.append(' '.join(txt.split()))
+                        
+                if row_vals:
+                    comparison_rows_data.append(row_vals)
+            
+            if len(comparison_rows_data) > 1:
+                # Build new HTML table string
+                header_cols = comparison_rows_data[0]
+                tbl_html = ["<table><thead><tr>"]
+                for hc in header_cols:
+                    tbl_html.append(f"<th>{hc}</th>")
+                tbl_html.append("</tr></thead><tbody>")
+                
+                for row_cols in comparison_rows_data[1:]:
+                    tbl_html.append("<tr>")
+                    for i in range(len(header_cols)):
+                        val = row_cols[i] if i < len(row_cols) else ""
+                        tbl_html.append(f"<td>{val}</td>")
+                    tbl_html.append("</tr>")
+                tbl_html.append("</tbody></table>")
+                
+                # Construct real table soup and replace the top section with it!
+                table_soup = BeautifulSoup("".join(tbl_html), "html.parser")
+                top_sec.replace_with(table_soup)
+
 def scrape_web_page(url: str) -> list:
     """
     Fetches page, discards noise, and parses text, lists, and tables 
@@ -247,7 +357,7 @@ def scrape_web_page(url: str) -> list:
         elif tag.name == 'p':
             txt = ' '.join(tag.get_text(separator=' ', strip=True).split())
             # Eliminate extremely short strings which are usually noise
-            if txt and len(txt) > 10:
+            if txt and len(txt) > 5:
                 current_content.append(txt)
                 
     flush_block()
