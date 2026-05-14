@@ -85,6 +85,79 @@ def format_html_table_to_markdown(table_tag) -> str:
     rows.insert(1, header_divider)
     return "\n".join(rows)
 
+def normalize_custom_page_elements(soup: BeautifulSoup):
+    """
+    Identifies custom, non-standard Elementor layout widgets (e.g., pseudo-tables
+    built with nested columns or custom lists with direct text siblings) and 
+    normalizes them into standard semantic HTML tags (like <table> and <p>) so 
+    the existing general parser handles them naturally and robustly.
+    """
+    # 1. Normalize Win Advantage items by wrapping description texts in pristine <p> tags
+    for item in soup.find_all(class_='advantage-list-item'):
+        container = item.find(class_='elementor-widget-container')
+        if container:
+            h3 = container.find('h3')
+            if h3:
+                desc_parts = []
+                # Accumulate text from all following siblings in the container
+                for sibling in list(h3.next_siblings):
+                    if hasattr(sibling, 'get_text'):
+                        txt = sibling.get_text(separator=' ', strip=True)
+                    else:
+                        txt = str(sibling).strip()
+                    if txt:
+                        desc_parts.append(txt)
+                    sibling.extract() # Remove so they aren't processed in duplicates
+                
+                full_desc = ' '.join(' '.join(desc_parts).split())
+                if full_desc:
+                    new_p = soup.new_tag('p')
+                    new_p.string = full_desc
+                    h3.insert_after(new_p)
+
+    # 2. Convert "Type of Expenditure" Elementor pseudo-table to a real <table>
+    exp_containers = soup.find_all(class_='expenditure-text')
+    if exp_containers:
+        table_rows_html = []
+        for exp in exp_containers:
+            # 2a. Extract label title
+            title_node = exp.find(class_='underlined-text')
+            title = title_node.get_text(separator=' ', strip=True) if title_node else exp.get_text(separator=' ', strip=True)
+            title = ' '.join(title.split())
+            
+            # 2b. Extract associated pop-up tooltip description
+            parent_widget = exp.find_parent(class_='elementor-widget-container')
+            description = ""
+            if parent_widget:
+                modal_body = parent_widget.find(class_=['modal-body-2', 'modal-body'])
+                if modal_body:
+                    description = ' '.join(modal_body.get_text(separator=' ', strip=True).split())
+            
+            # 2c. Extract amount from adjacent columns inside row section
+            amount = ""
+            inner_section = exp.find_parent(class_='elementor-inner-section')
+            if inner_section:
+                for widget in inner_section.find_all(class_='elementor-heading-title'):
+                    txt = ' '.join(widget.get_text(strip=True).split())
+                    if '$' in txt:
+                        amount = txt
+                        break
+            
+            if title and (amount or description):
+                table_rows_html.append(f"<tr><td>{title}</td><td>{amount}</td><td>{description}</td></tr>")
+                
+        if table_rows_html:
+            # Attempt to inject the new real table after the target heading
+            target_header = soup.find(lambda tag: tag.name in ['h1', 'h2', 'h3', 'h4'] and 'investment information' in tag.get_text().lower())
+            if target_header:
+                table_str = (
+                    "<table>"
+                    "<thead><tr><th>Type of Expenditure</th><th>Amount</th><th>Description</th></tr></thead>"
+                    "<tbody>" + "".join(table_rows_html) + "</tbody></table>"
+                )
+                new_table_soup = BeautifulSoup(table_str, 'html.parser')
+                target_header.insert_after(new_table_soup)
+
 def scrape_web_page(url: str) -> list:
     """
     Fetches page, discards noise, and parses text, lists, and tables 
@@ -103,6 +176,9 @@ def scrape_web_page(url: str) -> list:
         return []
         
     soup = BeautifulSoup(response.content, 'html.parser')
+    
+    # Run DOM normalizer to convert custom/complex sales layouts to standard tags
+    normalize_custom_page_elements(soup)
     
     # Strip navigation, headers, footers, and scripting code
     for element in soup(["script", "style", "nav", "footer", "header", "aside", "iframe", "form", "noscript"]):
