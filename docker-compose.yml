@@ -15,6 +15,7 @@ services:
       # - LANGFUSE_BASE_URL=http://host.docker.internal:3000
     volumes:
       - ./vector_store:/app/vector_store
+      - ./data:/app/data
     restart: always
 
   frontend:

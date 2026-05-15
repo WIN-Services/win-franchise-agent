@@ -28,14 +28,18 @@ def _count_tokens(text: str, model: str = "gpt-4o-mini") -> int:
 
 def _truncate_context(chunks: List[Dict[str, Any]], max_tokens: int, model: str) -> str:
     """
-    Formats retrieved chunks into a context string, truncating to stay
-    within max_tokens. Includes source attribution per chunk.
+    Formats retrieved chunks into a structured context string, truncating to stay
+    within max_tokens. Follows strict numbered [Source X] formatting with Section & Content tags.
     """
     parts = []
     used = 0
-    for chunk in chunks:
-        source = chunk.get("metadata", {}).get("source", "Unknown")
-        text = f"[Source: {source}]\n{chunk['text']}"
+    for i, chunk in enumerate(chunks):
+        # Pull section from metadata, fall back to "General" if not present
+        section = chunk.get("metadata", {}).get("section", "General Information")
+        
+        # Format to exact specifications
+        text = f"[Source {i + 1}]\nSection: {section}\nContent:\n{chunk['text']}"
+        
         tok = _count_tokens(text, model)
         if used + tok > max_tokens:
             break
