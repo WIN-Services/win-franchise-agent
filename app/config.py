@@ -6,9 +6,11 @@ class Settings(BaseSettings):
     LLM_MODEL: str = "gpt-4o-mini"          # cheap + capable; ~$0.60/1M tokens
     EMBEDDING_MODEL: str = "text-embedding-3-small"
     VECTOR_DB_PATH: str = "vector_store"
-    CHUNK_SIZE: int = 500
-    CHUNK_OVERLAP: int = 50
-    TOP_K_RESULTS: int = 3
+    CHUNK_SIZE: int = 700
+    CHUNK_OVERLAP: int = 100
+    TOP_K_RESULTS: int = 20
+    RERANK_MODEL: str = "BAAI/bge-reranker-large"
+    TOP_K_RERANK: int = 5
 
     # ── Token budget controls ─────────────────────────────────────────────
     MAX_OUTPUT_TOKENS: int = 512          # cap LLM response length
