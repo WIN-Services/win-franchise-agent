@@ -8,9 +8,9 @@ class Settings(BaseSettings):
     VECTOR_DB_PATH: str = "vector_store"
     CHUNK_SIZE: int = 700
     CHUNK_OVERLAP: int = 100
-    TOP_K_RESULTS: int = 20
+    TOP_K_RESULTS: int = 25
     RERANK_MODEL: str = "BAAI/bge-reranker-large"
-    TOP_K_RERANK: int = 5
+    TOP_K_RERANK: int = 7
 
     # ── Token budget controls ─────────────────────────────────────────────
     MAX_OUTPUT_TOKENS: int = 512          # cap LLM response length
