@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Platform } from 'react-native';
 import { Send } from 'lucide-react-native';
 
 const MessageInput = ({ onSend, isLoading }) => {
@@ -12,6 +12,15 @@ const MessageInput = ({ onSend, isLoading }) => {
     }
   };
 
+  const handleKeyPress = (e) => {
+    if (Platform.OS === 'web' && e.nativeEvent.key === 'Enter' && !e.nativeEvent.shiftKey) {
+      if (e.preventDefault) {
+        e.preventDefault();
+      }
+      handleSend();
+    }
+  };
+
   return (
     <View style={styles.container}>
       <TextInput
@@ -19,6 +28,7 @@ const MessageInput = ({ onSend, isLoading }) => {
         placeholder="Ask about WIN franchise..."
         value={text}
         onChangeText={setText}
+        onKeyPress={handleKeyPress}
         multiline
         maxHeight={100}
         editable={!isLoading}
