@@ -26,16 +26,16 @@ def get_franchise_info(query: str) -> Dict[str, Any]:
     return output
 
 @observe(name="tool_execution")
-def get_investment_details() -> Dict[str, Any]:
+def get_investment_details(query: str = None) -> Dict[str, Any]:
     """
     Retrieves specific information regarding investment details and initial franchise fees.
     """
-    query = "What are the investment details, initial franchise fee, and costs?"
+    search_query = query if query else "What are the investment details, initial franchise fee, and costs?"
     langfuse_client.update_current_span(
-        input={"tool_name": "get_investment_details"}
+        input={"query": search_query, "tool_name": "get_investment_details"}
     )
     
-    chunks = retriever.retrieve(query)
+    chunks = retriever.retrieve(search_query)
     
     output = {
         "status": "success",
@@ -46,16 +46,16 @@ def get_investment_details() -> Dict[str, Any]:
     return output
 
 @observe(name="tool_execution")
-def get_process_steps() -> Dict[str, Any]:
+def get_process_steps(query: str = None) -> Dict[str, Any]:
     """
     Retrieves the steps and timeline required to become a franchise owner.
     """
-    query = "What are the steps and process timeline to become a franchise owner?"
+    search_query = query if query else "What are the steps and process timeline to become a franchise owner?"
     langfuse_client.update_current_span(
-        input={"tool_name": "get_process_steps"}
+        input={"query": search_query, "tool_name": "get_process_steps"}
     )
     
-    chunks = retriever.retrieve(query)
+    chunks = retriever.retrieve(search_query)
     
     output = {
         "status": "success",

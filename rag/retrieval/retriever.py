@@ -4,6 +4,7 @@ from langfuse import observe
 from app.utils.langfuse_client import langfuse_client
 from rag.embeddings.store import VectorStoreManager
 from rag.retrieval.reranker import FranchiseReranker
+from rag.retrieval.table_utils import TableIndex, detect_table_intent, reconstruct_table
 from app.config import settings
 
 logger = logging.getLogger("retriever")
@@ -16,6 +17,7 @@ class FranchiseRetriever:
     
     def __init__(self):
         self.manager = VectorStoreManager()
+        self.table_index = None
         try:
             self.reranker = FranchiseReranker()
         except Exception as e:
@@ -57,6 +59,41 @@ class FranchiseRetriever:
         else:
             # Fallback to raw slices
             results = candidates[:target_k]
+            
+        # --- TABLE INTENT & EXPANSION LOGIC ---
+        if detect_table_intent(query):
+            # Lazy initialize TableIndex if store is loaded
+            if self.table_index is None and self.manager.vector_store is not None:
+                self.table_index = TableIndex(self.manager.vector_store.docstore._dict)
+                
+            expanded_results = []
+            reconstructed_tables = set()
+            
+            for chunk in results:
+                metadata = chunk.get("metadata", {})
+                table_name = metadata.get("table")
+                
+                if table_name:
+                    section = metadata.get("metadata", {}).get("section", "")
+                    table_key = f"{table_name}::{section}"
+                    
+                    if table_key not in reconstructed_tables:
+                        reconstructed_tables.add(table_key)
+                        logger.info(f"Expanding retrieved table: {table_key}")
+                        # Fetch sibling rows from in-memory index
+                        if self.table_index:
+                            sibling_docs = self.table_index.get_table_docs(table_key)
+                            if sibling_docs:
+                                reconstructed_chunk = reconstruct_table(table_key, sibling_docs)
+                                expanded_results.append(reconstructed_chunk)
+                            else:
+                                expanded_results.append(chunk)
+                        else:
+                            expanded_results.append(chunk)
+                else:
+                    expanded_results.append(chunk)
+                    
+            results = expanded_results
             
         # Log the enriched and filtered telemetry to Langfuse span
         langfuse_client.update_current_span(
