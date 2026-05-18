@@ -21,6 +21,11 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir -r requirements.txt
 
+# Pre-download the Sentence-Transformers reranking model during Docker Build.
+# This ensures weights (~2.2 GB) are baked into the image, preventing multi-minute 
+# startup latencies or AWS load balancer health-check timeouts on EC2/ECS boot.
+RUN python -c "from sentence_transformers import CrossEncoder; CrossEncoder('BAAI/bge-reranker-large')"
+
 # Copy the application code and necessary folders
 # (We exclude frontend/ and node_modules/ via .dockerignore)
 COPY . .
