@@ -7,43 +7,59 @@ logger = logging.getLogger("table_utils")
 def detect_table_intent(query: str) -> bool:
     """
     Detects if the user is asking for a full table, complete breakdown, or all rows.
-    Supports intermediate words (e.g. "full franchise fee breakdown") and flexible phrasing.
+    Implements a 3-tier heuristic matching system (Direct, Plural Co-occurrence, Helper Modifier).
     """
     query_lower = query.lower()
     words = set(re.findall(r'\b\w+\b', query_lower))
     
-    # 1. Broad expansion keywords that trigger full tables when combined with table terms
-    expansion_triggers = {
-        "full", "complete", "show", "itemized", "line", "all", "compare",
-        "comparative", "structure", "breakdown", "summarize", "list", "matrix", "every"
+    # 1. Direct collection triggers (strongly imply full table)
+    collection_triggers = {
+        "breakdown", "comparative", "structure", "list", "matrix", "schedule", "table", "itemized"
     }
     
-    # 2. Indicators of table nouns
-    table_indicators = {
-        "table", "breakdown", "structure", "list", "fee", "fees", "investment", 
-        "investments", "pricing", "cost", "costs", "expenditure", "expenditures", 
-        "schedule", "matrix", "feature", "features", "service", "services"
+    # 2. General expansion request verbs/adjectives
+    general_triggers = {
+        "full", "complete", "show", "all", "compare", "summarize", "every", "share", "give", "provide", "get", "tell", "start"
     }
     
-    # Check for direct phrase matches first (e.g. "all rows", "show all")
+    # 3. Plural nouns that imply complete datasets
+    plural_indicators = {
+        "fees", "costs", "investments", "expenditures", "services", "features", "steps"
+    }
+    
+    # 4. Singular table indicators
+    singular_indicators = {
+        "fee", "cost", "investment", "expenditure", "service", "feature", "step"
+    }
+    
+    # Heuristic A: Direct mention of a table/breakdown keyword
+    if any(t in words for t in collection_triggers):
+        logger.info(f"Direct collection keyword table intent detected: {collection_triggers.intersection(words)}")
+        return True
+        
+    # Heuristic B: General trigger co-occurring with plural indicator (e.g. "share the costs")
+    has_general = any(t in words for t in general_triggers)
+    has_plural = any(i in words for i in plural_indicators)
+    if has_general and has_plural:
+        logger.info(f"Plural indicator table intent detected: trigger={general_triggers.intersection(words)}, plural={plural_indicators.intersection(words)}")
+        return True
+        
+    # Heuristic C: Helper co-occurring with singular indicator (e.g. "full cost")
+    has_helper = any(h in words for h in {"full", "complete", "all", "every", "compare", "itemized"})
+    has_singular = any(s in words for s in singular_indicators)
+    if has_helper and has_singular:
+        logger.info(f"Helper and singular table intent detected: helper={has_helper}, singular={singular_indicators.intersection(words)}")
+        return True
+        
+    # Direct phrase overrides
     direct_phrases = [
-        "all rows", "show all", "itemized details", "line items", "all services", 
-        "all features", "fee structure", "pricing structure", "pricing table",
-        "comparative structure"
+        "all rows", "show all", "line items", "pricing table", "fee structure", "pricing structure"
     ]
     for phrase in direct_phrases:
         if phrase in query_lower:
-            logger.info(f"Direct phrase table intent detected: '{phrase}'")
+            logger.info(f"Direct override phrase table intent detected: '{phrase}'")
             return True
             
-    # Check for flexible combinations of trigger words and table indicator words
-    has_trigger = any(t in words for t in expansion_triggers)
-    has_indicator = any(i in words for i in table_indicators)
-    
-    if has_trigger and has_indicator:
-        logger.info(f"Co-occurrence table intent detected: triggers={expansion_triggers.intersection(words)}, indicators={table_indicators.intersection(words)}")
-        return True
-        
     return False
 
 class TableIndex:

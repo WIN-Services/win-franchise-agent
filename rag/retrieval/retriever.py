@@ -69,7 +69,10 @@ class FranchiseRetriever:
             expanded_results = []
             reconstructed_tables = set()
             
-            for chunk in results:
+            # Scan ALL raw FAISS candidates (top 25) for table rows.
+            # This ensures that even if a typo (like "franchice") causes the reranker to penalize the row,
+            # we still catch it if it was successfully retrieved by the initial vector search!
+            for chunk in candidates:
                 metadata = chunk.get("metadata", {})
                 table_name = metadata.get("table")
                 
@@ -79,18 +82,20 @@ class FranchiseRetriever:
                     
                     if table_key not in reconstructed_tables:
                         reconstructed_tables.add(table_key)
-                        logger.info(f"Expanding retrieved table: {table_key}")
+                        logger.info(f"Expanding retrieved table from raw FAISS candidates due to table intent: {table_key}")
                         # Fetch sibling rows from in-memory index
                         if self.table_index:
                             sibling_docs = self.table_index.get_table_docs(table_key)
                             if sibling_docs:
                                 reconstructed_chunk = reconstruct_table(table_key, sibling_docs)
                                 expanded_results.append(reconstructed_chunk)
-                            else:
-                                expanded_results.append(chunk)
-                        else:
-                            expanded_results.append(chunk)
-                else:
+                                
+            # Append high-scoring narrative chunks from the reranked top results (top-7)
+            # that are NOT part of the expanded tables, to ensure all relevant narrative is kept!
+            for chunk in results:
+                metadata = chunk.get("metadata", {})
+                table_name = metadata.get("table")
+                if not table_name:
                     expanded_results.append(chunk)
                     
             results = expanded_results
