@@ -87,10 +87,10 @@ class Orchestrator:
             result = fallback_no_answer()
         elif _INVESTMENT_PATTERNS.search(query):
             tool_name = "get_investment_details"
-            result = get_investment_details()
+            result = get_investment_details(query=query)
         elif _PROCESS_PATTERNS.search(query):
             tool_name = "get_process_steps"
-            result = get_process_steps()
+            result = get_process_steps(query=query)
         else:
             tool_name = "get_franchise_info"
             result = get_franchise_info(query=query)
