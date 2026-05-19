@@ -5,6 +5,8 @@ import json
 import logging
 from typing import List, Dict, Any
 from dotenv import load_dotenv
+from langchain_openai import ChatOpenAI
+from langchain_core.messages import HumanMessage, SystemMessage
 
 # Add project root to PYTHONPATH so we can import app and rag
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -18,6 +20,104 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(message)s"
 )
 logger = logging.getLogger(__name__)
+
+_summarizer_llm = None
+
+def get_summary(text_val: str) -> str:
+    """
+    Generates a compressed summary of the text value, reducing content size by approximately 50%.
+    """
+    global _summarizer_llm
+    if not text_val.strip():
+        return ""
+    if _summarizer_llm is None:
+        load_dotenv()
+        api_key = os.getenv("OPENAI_API_KEY") or settings.OPENAI_API_KEY
+        if not api_key:
+            logger.warning("No API key found for summarization, falling back to truncation.")
+            return text_val[:len(text_val)//2] + "..."
+        _summarizer_llm = ChatOpenAI(
+            model="gpt-4o-mini",
+            api_key=api_key,
+            temperature=0,
+            max_tokens=250
+        )
+    try:
+        messages = [
+            SystemMessage(content="You are a professional assistant. Your task is to compress the provided text. Reduce the content size by approximately 50% while retaining all specific details, core facts, metrics, and structural layout. Preserve key information and do not generalize excessively. Output only the compressed text, with no introduction or extra words."),
+            HumanMessage(content=text_val)
+        ]
+        res = _summarizer_llm.invoke(messages)
+        return res.content.strip()
+    except Exception as e:
+        logger.error(f"Error generating summary: {e}")
+        return text_val[:len(text_val)//2] + "..."
+
+def classify_content_type(text: str) -> List[str]:
+    """
+    Classifies content semantically into all matching designated categories based on keyword mappings.
+    """
+    if not text:
+        return []
+    text_lower = text.lower()
+    matched = []
+    
+    # pricing
+    pricing_kws = ["pricing", "cost", "investment", "fee", "expense", "royalty", "royalties", "ad fee", "financial", "$", "expenditure"]
+    if any(k in text_lower for k in pricing_kws):
+        matched.append("pricing")
+        
+    # steps
+    steps_kws = ["step 1", "step 2", "step 3", "step 4", "step 5", "steps", "process", "onboarding", "how to join", "flow", "sequence", "phase"]
+    if any(k in text_lower for k in steps_kws):
+        matched.append("steps")
+        
+    # training
+    training_kws = ["training", "train", "certify", "certification", "in-house training", "academy", "education", "course", "bootcamp"]
+    if any(k in text_lower for k in training_kws):
+        matched.append("training")
+        
+    # support
+    support_kws = ["support", "assist", "help", "coach", "guide", "hotline", "team", "advisor", "ongoing support"]
+    if any(k in text_lower for k in support_kws):
+        matched.append("support")
+        
+    # technology
+    tech_kws = ["technology", "software", "hardware", "tool", "app", "platform", "portal", "dashboard", "tablet", "device", "proprietary"]
+    if any(k in text_lower for k in tech_kws):
+        matched.append("technology")
+        
+    # marketing
+    marketing_kws = ["marketing", "promote", "advertising", "campaign", "lead", "brand", "social media", "seo", "local market", "collateral", "flyer"]
+    if any(k in text_lower for k in marketing_kws):
+        matched.append("marketing")
+        
+    # territory
+    territory_kws = ["territory", "location", "area", "exclusive", "zip code", "market", "demographic", "population", "region"]
+    if any(k in text_lower for k in territory_kws):
+        matched.append("territory")
+        
+    # faq
+    faq_kws = ["faq", "frequently asked", "question", "q&a", "q:", "a:"]
+    if any(k in text_lower for k in faq_kws):
+        matched.append("faq")
+        
+    # legal
+    legal_kws = ["legal", "disclosure", "fdd", "agreement", "contract", "item 1", "item 19", "compliance", "regulation"]
+    if any(k in text_lower for k in legal_kws):
+        matched.append("legal")
+        
+    # requirements
+    req_kws = ["require", "qualification", "criteria", "background", "eligible", "minimum", "experience", "license", "mandatory", "prerequisite"]
+    if any(k in text_lower for k in req_kws):
+        matched.append("requirements")
+        
+    # benefits
+    benefits_kws = ["benefit", "advantage", "why win", "freedom", "flexibility", "growth", "potential", "pro", "perk", "treat you like family", "successful"]
+    if any(k in text_lower for k in benefits_kws):
+        matched.append("benefits")
+        
+    return matched
 
 def parse_blocks(file_path: str):
     """
@@ -246,20 +346,37 @@ def main():
         segments = parse_tables_and_text(content, chunker)
         
         for segment in segments:
+            source_type = raw_meta.get("source", "").strip().lower()
+            section_name = raw_meta.get("section", "").strip()
+            sub_section_name = (raw_meta.get("subsection", "") or raw_meta.get("sub-section", "")).strip()
+
             if segment["type"] == "table_row":
                 # Build structured table record mapping row data to TOP level keys
                 row_data = segment["row_data"]
+                
+                # Format row data as a string for classification and summarization
+                row_text_representation = ", ".join(f"{k.replace('_', ' ').capitalize()}: {v}" for k, v in row_data.items() if k not in ("table", "metadata"))
+                text_to_classify = f"{section_name} {sub_section_name} {row_text_representation}"
+                content_type = classify_content_type(text_to_classify)
+                
                 chunk_record = {
                     "metadata": {
-                        "section": raw_meta.get("section", ""),
-                        "sub-section": raw_meta.get("subsection", ""),
-                        "source": raw_meta.get("source", ""),
+                        "section": section_name,
+                        "sub-section": sub_section_name,
+                        "source": source_type,
                         "url": url,
-                        "path": path
+                        "path": path,
+                        "content_type": content_type
                     },
                     "table": segment["table"],
                     **row_data
                 }
+                
+                # For document source, generate summary display_text
+                if source_type == "document":
+                    logger.info(f"Generating display_text summary for document table row chunk...")
+                    chunk_record["display_text"] = get_summary(row_text_representation)
+                    
                 all_chunks_output.append(chunk_record)
                 
             elif segment["type"] == "text":
@@ -272,17 +389,27 @@ def main():
                 
                 # Structure into traditional text chunks
                 for idx, chunk_text in enumerate(chunks):
+                    text_to_classify = f"{section_name} {sub_section_name} {chunk_text}"
+                    content_type = classify_content_type(text_to_classify)
+                    
                     chunk_record = {
                         "text": chunk_text,
                         "metadata": {
-                            "section": raw_meta.get("section", ""),
-                            "sub-section": raw_meta.get("subsection", ""),
-                            "source": raw_meta.get("source", ""),
+                            "section": section_name,
+                            "sub-section": sub_section_name,
+                            "source": source_type,
                             "url": url,
                             "path": path,
+                            "content_type": content_type,
                             "chunk_index_in_section": idx
                         }
                     }
+                    
+                    # For document source, generate summary display_text
+                    if source_type == "document":
+                        logger.info(f"Generating display_text summary for document text chunk...")
+                        chunk_record["display_text"] = get_summary(chunk_text)
+                        
                     all_chunks_output.append(chunk_record)
             
     logger.info(f"Chunking complete! Generated {len(all_chunks_output)} total records.")

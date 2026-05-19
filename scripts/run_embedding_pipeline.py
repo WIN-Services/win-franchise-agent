@@ -110,10 +110,19 @@ def main():
     lc_metadatas = []
     for idx, chunk in enumerate(raw_chunks):
         # Store original text & complete dictionary keys so everything is accessible
+        raw_meta = chunk.get("metadata", {})
         meta_dict = {
             "chunk_id": idx,
             "semantic_text": all_semantic_texts[idx],
             "original_text": chunk.get("text", ""),
+            # Flattened metadata fields at the top level for better extraction compatibility
+            "section": raw_meta.get("section", ""),
+            "subsection": raw_meta.get("sub-section", "") or raw_meta.get("subsection", ""),
+            "sub-section": raw_meta.get("sub-section", ""),
+            "source": raw_meta.get("source", ""),
+            "url": raw_meta.get("url", ""),
+            "path": raw_meta.get("path", ""),
+            "content_type": raw_meta.get("content_type", []),
             **{k: v for k, v in chunk.items() if k != "text"}
         }
         lc_metadatas.append(meta_dict)
