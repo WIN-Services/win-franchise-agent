@@ -25,9 +25,9 @@ class SQSLogger:
         if self._initialized:
             return True
 
-        if not settings.AWS_SQS_QUEUE_URL:
+        if not settings.AWS_SQS_QUEUE_URL and not settings.AWS_SQS_SUMMARY_QUEUE_URL:
             # Silent warning to prevent log pollution if intentionally disabled
-            logger.warning("AWS_SQS_QUEUE_URL is not set. AWS SQS logging is disabled.")
+            logger.warning("Neither AWS_SQS_QUEUE_URL nor AWS_SQS_SUMMARY_QUEUE_URL is set. AWS SQS logging is disabled.")
             return False
 
         try:
@@ -101,6 +101,40 @@ class SQSLogger:
             logger.info(f"SQS log message sent successfully. session_id={session_id}, message_id={message_id}")
         except Exception as e:
             logger.error(f"Failed to send interaction log to SQS queue: {e}", exc_info=True)
+
+    def log_summary_trigger(self, session_id: str) -> None:
+        """
+        Constructs a minimal summary trigger payload and sends it to the summary SQS queue.
+        This is intended to run as an asynchronous background task.
+        """
+        if not self._init_client():
+            return
+
+        if not settings.AWS_SQS_SUMMARY_QUEUE_URL:
+            logger.warning("AWS_SQS_SUMMARY_QUEUE_URL is not set. Summary trigger is disabled.")
+            return
+
+        try:
+            timestamp = datetime.datetime.utcnow().isoformat() + "Z"
+            payload = {
+                "conversation_id": session_id,
+                "timestamp": timestamp
+            }
+
+            send_params = {
+                "QueueUrl": settings.AWS_SQS_SUMMARY_QUEUE_URL,
+                "MessageBody": json.dumps(payload)
+            }
+            
+            # FIFO queues require MessageGroupId and MessageDeduplicationId
+            if ".fifo" in settings.AWS_SQS_SUMMARY_QUEUE_URL:
+                send_params["MessageGroupId"] = session_id
+                send_params["MessageDeduplicationId"] = f"{session_id}-{timestamp}"
+
+            self._sqs_client.send_message(**send_params)
+            logger.info(f"SQS summary trigger message sent successfully. session_id={session_id}")
+        except Exception as e:
+            logger.error(f"Failed to send summary trigger to SQS queue: {e}", exc_info=True)
 
 
 # Module-level singleton

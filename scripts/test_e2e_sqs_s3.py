@@ -100,7 +100,7 @@ def run_e2e_tests():
     }
     
     # Define S3 location for this session
-    expected_s3_key_part1 = f"franchise_chatbot/convesation/{session_id_part1}/000001.json"
+    expected_s3_key_part1 = f"franchise_chatbot/conversation/{session_id_part1}/000001.json"
     
     print("Sending message to SQS...")
     try:
@@ -169,7 +169,7 @@ def run_e2e_tests():
     # The Lambda should be triggered by SQS.
     # Note that in SQS logger, the message is sent. Since the message didn't have message_index,
     # the lambda fallback will call get_next_sequence_number and save it as 000001.json.
-    expected_s3_key_part2 = f"franchise_chatbot/convesation/{session_id_part2}/000001.json"
+    expected_s3_key_part2 = f"franchise_chatbot/conversation/{session_id_part2}/000001.json"
     
     # Poll S3 for the created file
     if poll_s3_for_file(s3_client, bucket_name, expected_s3_key_part2):

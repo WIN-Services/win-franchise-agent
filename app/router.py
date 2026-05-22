@@ -84,6 +84,12 @@ async def chat_endpoint(request: ChatRequest, background_tasks: BackgroundTasks)
             chunk_metadata=chunk_metadatas
         )
 
+        # Log summary trigger to AWS SQS summary queue asynchronously
+        background_tasks.add_task(
+            sqs_logger.log_summary_trigger,
+            session_id=session_id
+        )
+
         langfuse_client.flush()
 
         return {
