@@ -118,6 +118,7 @@ class Orchestrator:
             response = {
                 "answer": tool_result["answer"],
                 "sources": [],
+                "retrieved_chunks": []
             }
             langfuse_client.update_current_span(output=response)
             return response
@@ -142,7 +143,8 @@ class Orchestrator:
         response = {
             "answer": answer, 
             "sources": sources,
-            "demographics": demographics
+            "demographics": demographics,
+            "retrieved_chunks": chunks
         }
         langfuse_client.update_current_span(output=response)
         return response
