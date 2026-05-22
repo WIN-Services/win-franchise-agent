@@ -11,8 +11,9 @@ from app.utils.langfuse_client import langfuse_client, get_franchise_assistant_p
 
 class Demographics(BaseModel):
     """Extraction model for prospect demographics."""
-    name: Optional[str] = Field(None, description="Name of the prospect if provided")
-    phone_number: Optional[str] = Field(None, description="Phone number of the prospect if provided")
+    name: Optional[str] = Field(None, description="Full name of the prospect (must be First_Name Last_Name). If only a first name is given, return None.")
+    email: Optional[str] = Field(None, description="Email address of the prospect (must be in valid varchar@domain format). If invalid, return None.")
+    phone_number: Optional[str] = Field(None, description="Phone number of the prospect (must be in +1-XXXXXXXXXX format). If invalid, return None.")
     pin_code: Optional[str] = Field(None, description="Pin code or Zip code if provided")
     address: Optional[str] = Field(None, description="Address or location of the prospect if provided")
 
@@ -88,30 +89,42 @@ class FranchiseAgent:
             model=settings.LLM_MODEL,
         )
 
-        # 2. Compile the system/user prompt from Langfuse (or fallback)
-        system_prompt = get_franchise_assistant_prompt(context=context_text, query=query)
-
-        # 3. Build message list: system → history → current user message
-        messages = [SystemMessage(content=system_prompt)]
-
-        # We'll also collect the latest interaction for the extractor
-        extractor_messages = []
-        
+        # 2. Extract demographics first to determine lead status
+        extractor_messages = [
+            SystemMessage(content="Extract the user's demographics (Name, Phone, Pin Code, Address) from the conversation history. If not present, leave fields null.")
+        ]
         for msg in history:
             if msg["role"] == "user":
-                m = HumanMessage(content=msg["content"])
-                messages.append(m)
-                extractor_messages.append(m)
+                extractor_messages.append(HumanMessage(content=msg["content"]))
             elif msg["role"] == "assistant":
-                m = AIMessage(content=msg["content"])
-                messages.append(m)
-                extractor_messages.append(m)
+                extractor_messages.append(AIMessage(content=msg["content"]))
+        extractor_messages.append(HumanMessage(content=query))
+        
+        demographics_result = self.extractor_llm.invoke(extractor_messages)
+        demographics_dict = {
+            k: v for k, v in demographics_result.model_dump().items() if v is not None
+        }
+        
+        # Check if the core lead info is present (e.g., Name and Email)
+        lead_profile_complete = bool(demographics_dict.get("name") and demographics_dict.get("email"))
 
-        user_m = HumanMessage(content=query)
-        messages.append(user_m)
-        extractor_messages.append(user_m)
+        # 3. Compile the system/user prompt from Langfuse (or fallback)
+        system_prompt = get_franchise_assistant_prompt(
+            context=context_text, 
+            query=query, 
+            lead_profile_complete=lead_profile_complete
+        )
 
-        # 4. Estimate token usage for Langfuse logging
+        # 4. Build message list: system → history → current user message
+        messages = [SystemMessage(content=system_prompt)]
+        for msg in history:
+            if msg["role"] == "user":
+                messages.append(HumanMessage(content=msg["content"]))
+            elif msg["role"] == "assistant":
+                messages.append(AIMessage(content=msg["content"]))
+        messages.append(HumanMessage(content=query))
+
+        # 5. Estimate token usage for Langfuse logging
         full_input_text = " ".join(m.content for m in messages if hasattr(m, 'content'))
         est_input_tokens = _count_tokens(full_input_text, settings.LLM_MODEL)
 
@@ -122,26 +135,16 @@ class FranchiseAgent:
                 "est_input_tokens": est_input_tokens,
                 "history_messages": len(history),
                 "context_tokens_used": _count_tokens(context_text, settings.LLM_MODEL),
-                "final_prompt_preview": system_prompt[:400] + "..."
+                "final_prompt_preview": system_prompt[:400] + "...",
+                "lead_profile_complete": lead_profile_complete
             }
         )
 
-        # 5. Call the LLM
+        # 6. Call the LLM
         try:
             ai_message = self.llm.invoke(messages)
             response_text = ai_message.content
             est_output_tokens = _count_tokens(response_text, settings.LLM_MODEL)
-            
-            # 6. Extract demographics using structured output
-            # Add instruction for extractor
-            extractor_messages.insert(0, SystemMessage(
-                content="Extract the user's demographics (Name, Phone, Pin Code, Address) from the conversation history if present. If not present, leave fields null."
-            ))
-            
-            demographics_result = self.extractor_llm.invoke(extractor_messages)
-            demographics_dict = {
-                k: v for k, v in demographics_result.model_dump().items() if v is not None
-            }
 
             langfuse_client.update_current_span(
                 output={

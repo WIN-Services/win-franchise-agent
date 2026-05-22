@@ -25,15 +25,15 @@ from app.agents import FranchiseAgent
 # Intent rules: ordered list of (pattern, handler)
 # ---------------------------------------------------------------------------
 _INVESTMENT_PATTERNS = re.compile(
-    r"\b(fee|fees|cost|costs|investment|invest|capital|price|pricing|financ|afford)\b",
+    r"\b(fee|fees|cost|costs|investment|invest|capital|price|pricing|financ|afford|money|budget|pay|how much)\b",
     re.IGNORECASE,
 )
 _PROCESS_PATTERNS = re.compile(
-    r"\b(step|steps|process|how to|how do|timeline|apply|application|join|become|start)\b",
+    r"\b(step|steps|process|how to|how do|timeline|apply|application|join|become|start|licens|licensing|training|certification|certif|qualification|requirement|requirements|exam|inspector)\b",
     re.IGNORECASE,
 )
-_FALLBACK_PATTERNS = re.compile(
-    r"\b(competitor|other franchise|alternative|similar brand|rival)\b",
+_COMPETITOR_PATTERNS = re.compile(
+    r"\b(competitor|other franchise|alternative|similar brand|rival|pillar to post|national property|amerispec|housemaster|us inspect|hometeam|brightside|a\-pro|win vs|better than|compared to|comparison|versus)\b",
     re.IGNORECASE,
 )
 _SMALL_TALK_PATTERNS = re.compile(
@@ -45,16 +45,48 @@ _THANKS_PATTERNS = re.compile(
     re.IGNORECASE,
 )
 
-_GREETING_RESPONSE = (
-    "👋 Hello! Welcome to WIN Home Inspection — one of North America's fastest-growing franchise brands.\n\n"
-    "I'm your Franchise Assistant, here to help you explore the WIN opportunity. "
-    "I can help you with:\n"
-    "  • 💰 Investment & fees\n"
-    "  • 📋 Steps to become a franchise owner\n"
-    "  • 🏠 What WIN Home Inspection does\n"
-    "  • 📈 Training, support & territory\n\n"
-    "Ready to take the first step toward owning your own business? Ask me anything!"
-)
+import random
+
+_USPS = [
+    # Rankings & Awards
+    "WIN Home Inspection has been ranked #1 year over year on the Entrepreneur Franchise 500 list for home inspection franchises!",
+    "WIN is the #1 ranked and fastest-growing home inspection franchise in the US.",
+    "WIN has been consistently ranked as one of the top franchises for veterans in the US.",
+    # Training & Certifications
+    "WIN provides in-house training and certifications for 35+ essential home inspection services — more than any other franchise, at no additional cost.",
+    "WIN's training covers high-demand services like drone inspections, sewer scopes, radon testing, infrared scans, pool & spa inspections, and more.",
+    "WIN's state-of-the-art training curriculum helps franchise owners launch with zero prior home inspection experience.",
+    # Cost & Investment
+    "WIN is the lowest-cost franchise in the home inspection industry with an all-inclusive model and no hidden fees.",
+    "The total initial investment to own a WIN franchise ranges between just $41,200 and $49,800 — covering everything you need to launch.",
+    "WIN offers a 10% discount on the initial franchise fee for Veterans and First Responders.",
+    # Support & Marketing
+    "WIN is the only franchise in the US offering in-house, end-to-end marketing support to help you generate new business year-round.",
+    "WIN has assembled the largest support team in franchising on a per capita basis — including trainers, coaches, marketers, and technologists.",
+    "WIN has the largest peer mentorship network in the industry, so you're never alone on your journey.",
+    # Technology & Innovation
+    "WIN uses AI-driven cloud services and proprietary tools like WINspect, WIN Concierge, and W-PASS to help franchise owners delight clients and grow faster.",
+    "WIN franchise owners deliver inspection reports to clients within 24 hours using the proprietary WINspect software.",
+    # Business Model
+    "WIN's business model requires no storefront, no inventory, and no upfront staff — keeping overhead minimal.",
+    "Home inspection is a recession-resistant industry, and WIN franchise owners can build multiple income streams year-round.",
+    "WIN franchise owners can operate as a sole inspector or scale their team to multiple inspectors and locations.",
+    # Community & Legacy
+    "Since 1993, WIN has been supporting entrepreneurs nationwide with a proven business model and a track record of success.",
+    "36% of WIN's franchise owners are Veterans and First Responders — the largest percentage in the industry!",
+    # Success Stories
+    "One WIN franchise owner surpassed $600,000 in revenue within just two years and completed over 1,000 inspections in a single year.",
+    # State-Specific Training & Licensing
+    "WIN offers state-specific training and licensing programs across most states in the US — and is the only home inspection company approved by the Texas Real Estate Commission (TREC).",
+]
+
+
+def get_greeting_response() -> str:
+    usp = random.choice(_USPS)
+    return (
+        f"Hello! Welcome to WIN Home Inspection. Did you know? {usp}\n\n"
+        "I'm your Franchise Assistant. Before we continue, are you looking to start a business or exploring career opportunities?"
+    )
 
 _THANKS_RESPONSE = (
     "You're welcome! 😊 Is there anything else you'd like to know about the WIN franchise opportunity? "
@@ -69,31 +101,50 @@ class Orchestrator:
     """Routes a user query through the correct tool and the LLM agent."""
 
     @observe(name="tool_routing")
-    def route(self, query: str) -> Dict[str, Any]:
+    def route(self, query: str, history: list = None) -> Dict[str, Any]:
         """
         Classifies the intent of the query and calls the appropriate tool.
         Returns the raw tool output (list of chunks or a fallback dict).
         """
+        history = history or []
+        routing_text = query
+        
         langfuse_client.update_current_span(input={"query": query})
 
+        # 1. Explicit matches on the current query
         if _SMALL_TALK_PATTERNS.match(query):
             tool_name = "small_talk_greeting"
-            result = {"status": "success", "answer": _GREETING_RESPONSE}
+            result = {"status": "success", "answer": get_greeting_response()}
         elif _THANKS_PATTERNS.match(query):
             tool_name = "small_talk_thanks"
             result = {"status": "success", "answer": _THANKS_RESPONSE}
-        elif _FALLBACK_PATTERNS.search(query):
-            tool_name = "fallback_no_answer"
-            result = fallback_no_answer()
+        elif _COMPETITOR_PATTERNS.search(query):
+            tool_name = "get_franchise_info"
+            # Rewrite query to retrieve WIN's USPs instead of competitor data
+            usp_query = "Why WIN Home Inspection is the best franchise opportunity USPs advantages strengths " + query
+            result = get_franchise_info(query=usp_query)
         elif _INVESTMENT_PATTERNS.search(query):
             tool_name = "get_investment_details"
-            result = get_investment_details()
+            result = get_investment_details(query=query)
         elif _PROCESS_PATTERNS.search(query):
             tool_name = "get_process_steps"
-            result = get_process_steps()
+            result = get_process_steps(query=query)
         else:
-            tool_name = "get_franchise_info"
-            result = get_franchise_info(query=query)
+            # 2. Inherit intent from history if query is short (e.g. providing contact info, saying 'Yes')
+            if len(query.split()) < 15 and len(history) > 0:
+                history_user_msgs = " ".join([m["content"] for m in history if m["role"] == "user"])
+                if _INVESTMENT_PATTERNS.search(history_user_msgs):
+                    tool_name = "get_investment_details"
+                    result = get_investment_details(query=query)
+                elif _PROCESS_PATTERNS.search(history_user_msgs):
+                    tool_name = "get_process_steps"
+                    result = get_process_steps(query=query)
+                else:
+                    tool_name = "get_franchise_info"
+                    result = get_franchise_info(query=query)
+            else:
+                tool_name = "get_franchise_info"
+                result = get_franchise_info(query=query)
 
         langfuse_client.update_current_span(
             output={"tool_used": tool_name, "result_status": result.get("status")}
@@ -111,7 +162,7 @@ class Orchestrator:
         langfuse_client.update_current_span(input={"query": query, "history_len": len(history)})
 
         # 1. Tool routing
-        tool_result = self.route(query)
+        tool_result = self.route(query, history=history)
 
         # 2. Early-exit for fallback (no LLM needed)
         if tool_result.get("status") == "success" and "answer" in tool_result:
