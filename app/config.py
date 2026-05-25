@@ -3,18 +3,18 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     OPENAI_API_KEY: str = ""
-    LLM_MODEL: str = "gpt-4o-mini"          # cheap + capable; ~$0.60/1M tokens
+    LLM_MODEL: str = "gpt-5.1"          # cheap + capable; ~$0.60/1M tokens
     EMBEDDING_MODEL: str = "text-embedding-3-small"
     VECTOR_DB_PATH: str = "vector_store"
     CHUNK_SIZE: int = 700
     CHUNK_OVERLAP: int = 100
-    TOP_K_RESULTS: int = 25
+    TOP_K_RESULTS: int = 12
     RERANK_MODEL: str = "BAAI/bge-reranker-large"
-    TOP_K_RERANK: int = 7
+    TOP_K_RERANK: int = 6
 
     # ── Token budget controls ─────────────────────────────────────────────
     MAX_OUTPUT_TOKENS: int = 512          # cap LLM response length
-    MAX_CONTEXT_TOKENS: int = 1500        # max tokens used for retrieved context
+    MAX_CONTEXT_TOKENS: int = 2500        # max tokens used for retrieved context
     MAX_HISTORY_MESSAGES: int = 20        # sliding window per session (10 turns)
 
     # ── Langfuse ──────────────────────────────────────────────────────────

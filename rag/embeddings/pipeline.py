@@ -82,103 +82,56 @@ class EmbeddingPipeline:
             return ""
         return " ".join(word.capitalize() for word in key.split("_"))
 
-    @staticmethod
-    def determine_topic(section: str, subsection: str, text: str) -> str:
-        """
-        Determines the thematic topic based on metadata and content keywords.
-        """
-        sec_sub = (section + " " + subsection).lower()
-        text_lower = text.lower()
-        
-        if "veteran" in sec_sub or "first responder" in sec_sub:
-            return "Veterans & First Responders Program"
-        if "item 19" in sec_sub or "gross revenue" in sec_sub or "earnings" in sec_sub:
-            return "Item 19 Financial Performance"
-        if "fee" in sec_sub or "cost" in sec_sub or "investment" in sec_sub or "expenditure" in sec_sub or "pricing" in sec_sub:
-            return "Initial Investment & Fees"
-        if "train" in sec_sub or "bootcamp" in sec_sub or "academy" in sec_sub:
-            return "Training & Support Programs"
-        if "market" in sec_sub or "advertis" in sec_sub or "brand" in sec_sub:
-            return "Marketing & Advertising Support"
-        if "technolog" in sec_sub or "software" in sec_sub or "app" in sec_sub or "concierge" in sec_sub:
-            return "Technology & Systems"
-        if "territory" in sec_sub or "location" in sec_sub or "area" in sec_sub:
-            return "Territory & Location Selection"
-        if "faq" in sec_sub or "frequently asked" in sec_sub:
-            return "General FAQ"
-        if "disclosure" in sec_sub or "fdd" in sec_sub or "agreement" in sec_sub or "contract" in sec_sub or "legal" in sec_sub:
-            return "Legal Disclosures & FDD"
-        if "step" in sec_sub or "onboarding" in sec_sub or "launch" in sec_sub:
-            return "Franchise Agreement & Steps"
-            
-        # Try matching text keywords
-        if "veteran" in text_lower or "first responder" in text_lower:
-            return "Veterans & First Responders Program"
-        if "item 19" in text_lower or "gross revenue" in text_lower:
-            return "Item 19 Financial Performance"
-        if "fee" in text_lower or "cost" in text_lower or "investment" in text_lower:
-            return "Initial Investment & Fees"
-        if "training" in text_lower or "bootcamp" in text_lower:
-            return "Training & Support Programs"
-        if "marketing" in text_lower or "advertising" in text_lower:
-            return "Marketing & Advertising Support"
-        
-        # Fallback to subsection or section if available
-        if subsection:
-            return subsection
-        if section:
-            return section
-        return "Overview"
-
     def generate_semantic_text(self, chunk: Dict[str, Any]) -> str:
         """
         Transforms a raw JSON chunk into a high-quality semantic text string.
-        Adheres strictly to the requested semantic structure.
+        Supports both narrative text chunks and table row chunks.
         """
         meta = chunk.get("metadata", {})
         section = meta.get("section", "").strip()
         subsection = (meta.get("sub-section", "") or meta.get("subsection", "")).strip()
-        raw_ct = meta.get("content_type", "")
-        if isinstance(raw_ct, list):
-            content_type = ", ".join(str(c).strip() for c in raw_ct if str(c).strip())
-        else:
-            content_type = str(raw_ct).strip()
-        source_val = meta.get("source", "").strip()
-        table_name = chunk.get("table", "").strip() if "table" in chunk else ""
         
-        # Build main semantic content
+        # Table detection
         if "table" in chunk:
-            row_parts = []
+            table_slug = chunk["table"]
+            # Table title should be Section Name or table slug if empty
+            table_title = section if section else self.humanize_key(table_slug)
+            parts = [f"Table: {table_title}"]
+            
+            # Process rest of attributes (the columns of the row)
             for key, value in chunk.items():
-                if key in ("table", "metadata", "display_text"):
+                if key in ("table", "metadata"):
                     continue
+                    
                 val_str = str(value).strip()
                 if not val_str:
                     continue
+                    
                 human_k = self.humanize_key(key)
                 cleaned_val = self.clean_text(val_str)
+                
+                # Long description elements should follow a newline separator
                 if key.lower() in ("description", "content", "text", "details"):
-                    row_parts.append(f"{human_k}:\n{cleaned_val}")
+                    parts.append(f"{human_k}:\n{cleaned_val}")
                 else:
-                    row_parts.append(f"{human_k}: {cleaned_val}")
-            main_content = "\n\n".join(row_parts)
+                    parts.append(f"{human_k}: {cleaned_val}")
+            
+            return "\n\n".join(parts)
+        
+        # Standard narrative text chunk
         else:
             text_val = chunk.get("text", "")
-            main_content = self.clean_text(text_val)
+            cleaned_content = self.clean_text(text_val)
             
-        topic = self.determine_topic(section, subsection, main_content)
-        
-        header_lines = [
-            f"Section: {section}",
-            f"Subsection: {subsection}",
-            f"Content Type: {content_type}",
-            f"source: {source_val}",
-            f"Table Name: {table_name}",
-            f"Topic: {topic}"
-        ]
-        
-        headers_str = "\n".join(header_lines)
-        return f"{headers_str}\n\n{main_content}"
+            parts = []
+            if section:
+                parts.append(f"Section: {section}")
+            if subsection:
+                parts.append(f"Subsection: {subsection}")
+            if cleaned_content:
+                parts.append(f"Content:\n{cleaned_content}")
+                
+            return "\n\n".join(parts)
 
     def embed_batch(self, batch_texts: List[str], max_retries: int = 5) -> List[List[float]]:
         """
