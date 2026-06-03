@@ -60,12 +60,34 @@ def main():
         
     # 3. Generate Semantic Text & Prepare PKL Data Structure
     logger.info("Step 1: Generating high-quality semantic text formatting for all chunks...")
+    logger.info("  → FDD text chunks will be replaced with lightweight stubs.")
+    logger.info("  → FDD table chunks (investment, questions) will be kept as-is.")
     
     pkl_records = []
     all_semantic_texts = []
+    fdd_stubbed_count = 0
     
     for idx, chunk in enumerate(raw_chunks):
-        semantic_text = pipeline.generate_semantic_text(chunk)
+        meta = chunk.get("metadata", {})
+        is_fdd = meta.get("source") == "document"
+        is_table_chunk = "table" in chunk
+        
+        # --- FDD Stub Logic ---
+        # Replace full FDD narrative text with a short searchable stub.
+        # Keep table-type FDD chunks (investment breakdown, question rows) intact.
+        working_chunk = chunk
+        if is_fdd and not is_table_chunk and chunk.get("text", ""):
+            section = meta.get("section", "General FDD Info")
+            subsection = meta.get("sub-section", "") or meta.get("subsection", "")
+            stub_parts = [f"FDD {section}"]
+            if subsection:
+                stub_parts.append(f"— {subsection}")
+            stub_parts.append(": For detailed information, please connect with the WIN franchise team.")
+            stub_text = " ".join(stub_parts)
+            working_chunk = {**chunk, "text": stub_text}
+            fdd_stubbed_count += 1
+        
+        semantic_text = pipeline.generate_semantic_text(working_chunk)
         all_semantic_texts.append(semantic_text)
         
         # Merge to match the strict requirements:
@@ -73,9 +95,11 @@ def main():
         record = {
             "chunk_id": idx,
             "semantic_text": semantic_text,
-            **chunk # Expands "text", "metadata", "table", "row_data" elements naturally
+            **working_chunk # Expands "text", "metadata", "table", "row_data" elements naturally
         }
         pkl_records.append(record)
+    
+    logger.info(f"  → Stubbed {fdd_stubbed_count} FDD narrative chunks. Kept {sum(1 for c in raw_chunks if 'table' in c and c.get('metadata',{}).get('source')=='document')} FDD table chunks intact.")
         
     # Save readable TXT file in data folder as requested
     logger.info(f"Saving full semantic dump text to: {output_txt_path}")
@@ -109,11 +133,23 @@ def main():
     # Prepare metadatas matching chunk properties exactly
     lc_metadatas = []
     for idx, chunk in enumerate(raw_chunks):
+        raw_meta = chunk.get("metadata", {})
+        
+        # Promote source_url to a top-level metadata field for easy access
+        raw_url = raw_meta.get("url", "")
+        if raw_url and raw_url.startswith("http"):
+            source_url = raw_url
+        else:
+            # FDD or doc without a URL — use a descriptive label
+            path = raw_meta.get("path", "")
+            source_url = f"FDD: {path}" if path else ""
+        
         # Store original text & complete dictionary keys so everything is accessible
         meta_dict = {
             "chunk_id": idx,
             "semantic_text": all_semantic_texts[idx],
-            "original_text": chunk.get("text", ""),
+            "original_text": pkl_records[idx].get("text", ""),
+            "source_url": source_url,
             **{k: v for k, v in chunk.items() if k != "text"}
         }
         lc_metadatas.append(meta_dict)

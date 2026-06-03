@@ -26,6 +26,7 @@ class ConversationManager:
     def __init__(self):
         self._sessions: Dict[str, deque] = {}
         self._demographics: Dict[str, Dict[str, str]] = {}
+        self._session_states: Dict[str, dict] = {}
 
     def _get_or_create(self, session_id: str) -> deque:
         if session_id not in self._sessions:
@@ -33,6 +34,16 @@ class ConversationManager:
                 maxlen=settings.MAX_HISTORY_MESSAGES
             )
         return self._sessions[session_id]
+
+    def get_session_state(self, session_id: str) -> dict:
+        if session_id not in self._session_states:
+            self._session_states[session_id] = {
+                "persona": "exploring",
+                "topics_covered": [],
+                "state_detected": None,
+                "phone_collected": False
+            }
+        return self._session_states[session_id]
 
     def add_user_message(self, session_id: str, content: str) -> None:
         self._get_or_create(session_id).append(
@@ -45,30 +56,52 @@ class ConversationManager:
         )
 
     def get_history(self, session_id: str) -> List[Dict[str, str]]:
-        """Returns messages oldest-first, ready to prepend to the prompt."""
         return list(self._get_or_create(session_id))
 
     def clear(self, session_id: str) -> None:
         if session_id in self._sessions:
             del self._sessions[session_id]
+        if session_id in self._session_states:
+            del self._session_states[session_id]
+        if session_id in self._demographics:
+            del self._demographics[session_id]
 
     def message_count(self, session_id: str) -> int:
         return len(self._get_or_create(session_id))
 
     def update_demographics(self, session_id: str, info: Dict[str, str]) -> None:
-        """Merges new demographic info into the session's demographics dictionary."""
         if session_id not in self._demographics:
             self._demographics[session_id] = {}
         
-        # Only update keys that actually have values
+        state = self.get_session_state(session_id)
         for k, v in info.items():
             if v:
                 self._demographics[session_id][k] = v
+                if "phone" in k.lower():
+                    state["phone_collected"] = True
+                if "state" in k.lower() or k.lower() == "state_detected":
+                    state["state_detected"] = v
 
     def get_demographics(self, session_id: str) -> Dict[str, str]:
-        """Returns the current known demographics for the session."""
         return self._demographics.get(session_id, {})
+        
+    def get_phone_collected(self, session_id: str) -> bool:
+        return self.get_session_state(session_id)["phone_collected"]
+        
+    def add_topic(self, session_id: str, topic: str) -> None:
+        state = self.get_session_state(session_id)
+        if topic and topic not in state["topics_covered"]:
+            state["topics_covered"].append(topic)
+            
+    def get_topics(self, session_id: str) -> List[str]:
+        return self.get_session_state(session_id)["topics_covered"]
 
+    def update_persona(self, session_id: str, persona: str) -> None:
+        if persona in ["ready", "exploring", "comparing"]:
+            self.get_session_state(session_id)["persona"] = persona
+
+    def get_persona(self, session_id: str) -> str:
+        return self.get_session_state(session_id)["persona"]
 
 # Module-level singleton — shared across all requests in the same process
 conversation_manager = ConversationManager()

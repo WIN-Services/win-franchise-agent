@@ -7,4 +7,17 @@ dist/
 build/
 .vscode/
 .idea/
+# Evaluation and testing scripts
+scripts/evaluate_*.py
+scripts/test_*.py
+scripts/temp_*.py
+scripts/scratch_*.py
+scripts/qa_full_evaluation.py
+scripts/push_prompts.py
+test_*.py
+eval_*.py
 
+# Evaluation results
+*eval*.json
+evaluation_*.json
+frontend.zip
