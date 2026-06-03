@@ -160,11 +160,15 @@ class Orchestrator:
             response = {
                 "answer": tool_result["answer"],
                 "sources": [],
+<<<<<<< HEAD
                 "demographics": demographics,
                 "retrieved_chunks": [],
                 "topic": current_topic,
                 "persona": current_persona,
                 "session_state": session_state
+=======
+                "retrieved_chunks": []
+>>>>>>> new_origin/preprod
             }
             langfuse_client.update_current_span(output=response)
             return response
@@ -199,12 +203,17 @@ class Orchestrator:
         response_data = {
             "answer": answer,
             "sources": sources,
+<<<<<<< HEAD
             "demographics": extracted_demographics,
             "retrieved_chunks": chunks,
             "topic": current_topic,
             "persona": current_persona,
             "classified_intent": current_intent,
             "session_state": session_state
+=======
+            "demographics": demographics,
+            "retrieved_chunks": chunks
+>>>>>>> new_origin/preprod
         }
         langfuse_client.update_current_span(output=response_data)
         return response_data

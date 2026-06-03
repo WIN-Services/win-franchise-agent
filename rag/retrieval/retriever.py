@@ -1,6 +1,5 @@
 from typing import List, Dict, Any
 import logging
-
 from langfuse import observe
 from langchain_core.documents import Document
 from langchain_classic.retrievers import EnsembleRetriever

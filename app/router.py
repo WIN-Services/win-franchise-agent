@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 from typing import List, Optional
 import uuid
@@ -6,6 +6,7 @@ import uuid
 from app.utils.langfuse_client import langfuse_client
 from app.orchestrator import Orchestrator
 from app.conversation import conversation_manager
+from app.utils.sqs_logger import sqs_logger
 
 router = APIRouter()
 
@@ -40,7 +41,7 @@ class ChatResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 @router.post("/chat", response_model=ChatResponse)
-async def chat_endpoint(request: ChatRequest):
+async def chat_endpoint(request: ChatRequest, background_tasks: BackgroundTasks):
     """
     Franchise Chatbot entry point.
     """
@@ -76,9 +77,33 @@ async def chat_endpoint(request: ChatRequest):
         if "demographics" in result and result["demographics"]:
             conversation_manager.update_demographics(session_id, result["demographics"])
 
+<<<<<<< HEAD
         # Update persona if newly extracted
         if "persona" in result and result["persona"]:
             conversation_manager.update_persona(session_id, result["persona"])
+=======
+        # Extract metadata from retrieved chunks
+        retrieved_chunks = result.get("retrieved_chunks", [])
+        chunk_metadatas = [c.get("metadata", {}) for c in retrieved_chunks if isinstance(c, dict)]
+
+        # Log user query and response to AWS SQS asynchronously
+        background_tasks.add_task(
+            sqs_logger.log_interaction,
+            session_id=session_id,
+            query=query,
+            response_answer=result["answer"],
+            demographics=conversation_manager.get_demographics(session_id),
+            sources=result.get("sources", []),
+            history_length=conversation_manager.message_count(session_id),
+            chunk_metadata=chunk_metadatas
+        )
+
+        # Log summary trigger to AWS SQS summary queue asynchronously
+        background_tasks.add_task(
+            sqs_logger.log_summary_trigger,
+            session_id=session_id
+        )
+>>>>>>> new_origin/preprod
 
         langfuse_client.flush()
 

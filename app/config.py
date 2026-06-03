@@ -22,6 +22,13 @@ class Settings(BaseSettings):
     LANGFUSE_SECRET_KEY: str = ""
     LANGFUSE_BASE_URL: str = "http://localhost:3000"
 
+    # ── AWS / SQS ─────────────────────────────────────────────────────────
+    AWS_ACCESS_KEY_ID: str = ""
+    AWS_SECRET_ACCESS_KEY: str = ""
+    AWS_REGION_NAME: str = "us-east-1"
+    AWS_SQS_QUEUE_URL: str = ""
+    AWS_SQS_SUMMARY_QUEUE_URL: str = ""
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
 settings = Settings()

@@ -33,18 +33,27 @@ const HoverableLink = ({ text, url }) => {
 const ChatBubble = ({ message, isUser }) => {
   const formatMessage = (text) => {
     if (!text) return '';
+<<<<<<< HEAD
     const regex = /\*\*([^\*]+)\*\*|\[([^\]]+)\]\(([^)]+)\)/g;
+=======
+    const regex = /\*\*([^\*]+)\*\*/g;
+>>>>>>> new_origin/preprod
     const parts = [];
     let lastIndex = 0;
     let match;
 
     while ((match = regex.exec(text)) !== null) {
       const matchIndex = match.index;
+<<<<<<< HEAD
+=======
+      const matchedText = match[1];
+>>>>>>> new_origin/preprod
 
       if (matchIndex > lastIndex) {
         parts.push(text.substring(lastIndex, matchIndex));
       }
 
+<<<<<<< HEAD
       if (match[1]) {
         // Bold text
         parts.push(
@@ -58,6 +67,13 @@ const ChatBubble = ({ message, isUser }) => {
           <HoverableLink key={`link-${matchIndex}`} text={match[2]} url={match[3]} />
         );
       }
+=======
+      parts.push(
+        <Text key={`bold-${matchIndex}`} style={styles.boldText}>
+          {matchedText}
+        </Text>
+      );
+>>>>>>> new_origin/preprod
 
       lastIndex = regex.lastIndex;
     }
@@ -234,6 +250,7 @@ const styles = StyleSheet.create({
   boldText: {
     fontWeight: 'bold',
   },
+<<<<<<< HEAD
   linkText: {
     color: '#0056b3',
     textDecorationLine: 'underline',
@@ -262,6 +279,8 @@ const styles = StyleSheet.create({
     fontSize: 10,
     marginBottom: 2,
   },
+=======
+>>>>>>> new_origin/preprod
   userText: {
     color: '#fff',
   },

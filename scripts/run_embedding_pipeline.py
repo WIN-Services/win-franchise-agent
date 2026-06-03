@@ -145,11 +145,24 @@ def main():
             source_url = f"FDD: {path}" if path else ""
         
         # Store original text & complete dictionary keys so everything is accessible
+        raw_meta = chunk.get("metadata", {})
         meta_dict = {
             "chunk_id": idx,
             "semantic_text": all_semantic_texts[idx],
+<<<<<<< HEAD
             "original_text": pkl_records[idx].get("text", ""),
             "source_url": source_url,
+=======
+            "original_text": chunk.get("text", ""),
+            # Flattened metadata fields at the top level for better extraction compatibility
+            "section": raw_meta.get("section", ""),
+            "subsection": raw_meta.get("sub-section", "") or raw_meta.get("subsection", ""),
+            "sub-section": raw_meta.get("sub-section", ""),
+            "source": raw_meta.get("source", ""),
+            "url": raw_meta.get("url", ""),
+            "path": raw_meta.get("path", ""),
+            "content_type": raw_meta.get("content_type", []),
+>>>>>>> new_origin/preprod
             **{k: v for k, v in chunk.items() if k != "text"}
         }
         lc_metadatas.append(meta_dict)
