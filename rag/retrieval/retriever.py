@@ -21,14 +21,53 @@ class FranchiseRetriever:
         self.manager = VectorStoreManager()
         self.bm25_retriever = None
 
+    def _generate_hyde_document(self, query: str) -> str:
+        """
+        Uses an LLM to generate a hypothetical document that answers the query.
+        This provides a highly semantic dense target for FAISS.
+        """
+        try:
+            from langchain_openai import ChatOpenAI
+            from langchain_core.messages import SystemMessage, HumanMessage
+            
+            llm = ChatOpenAI(
+                model="gpt-4o-mini",
+                api_key=settings.OPENAI_API_KEY,
+                temperature=0,
+            )
+            messages = [
+                SystemMessage(content="You are an expert on the WIN Home Inspection franchise. Please write a short, hypothetical document that answers the user's question with precise factual-sounding statements. Do not use conversational filler. This document will be used to search a vector database."),
+                HumanMessage(content=query)
+            ]
+            result = llm.invoke(messages)
+            return result.content
+        except Exception as e:
+            logger.exception(f"HyDE generation failed: {e}")
+            return query
+
     # =====================================================
     # MAIN RETRIEVE
     # =====================================================
 
     @observe(name="retrieval")
-    def retrieve(self, query: str, k: int = None, search_query: str = None, initial_k: int = None) -> List[Dict[str, Any]]:
+    def retrieve(self, query: str, intent: str = "general", k: int = None) -> List[Dict[str, Any]]:
         top_k = k or settings.TOP_K_RESULTS
-        faiss_query = search_query if search_query else query
+        
+        # Select strategy
+        strategy = "dense"
+        search_query = query
+        weights = [0.0, 1.0] # default to Dense
+        
+        if intent in ["investment", "fdd_financial"]:
+            strategy = "hyde_dense"
+            search_query = self._generate_hyde_document(query)
+            weights = [0.0, 1.0] # Dense only, but with HyDE query
+        elif intent == "process":
+            strategy = "bm25_boosted_hybrid"
+            weights = [0.7, 0.3] # 70% BM25, 30% Dense
+        else:
+            strategy = "dense"
+            weights = [0.0, 1.0] # Dense only
 
         try:
             # -------------------------------------------------
@@ -68,18 +107,19 @@ class FranchiseRetriever:
             # -------------------------------------------------
             hybrid_retriever = EnsembleRetriever(
                 retrievers=[self.bm25_retriever, dense_retriever],
-                weights=[0.4, 0.6]
+                weights=weights
             )
 
             # -------------------------------------------------
             # RETRIEVE
             # -------------------------------------------------
-            docs = hybrid_retriever.invoke(faiss_query)
+            # Note: EnsembleRetriever takes a single query and passes it to all sub-retrievers.
+            docs = hybrid_retriever.invoke(search_query)
 
             # -------------------------------------------------
             # POST FILTERING
             # -------------------------------------------------
-            docs = self.post_process_results(docs, top_k)
+            docs = self.post_process_results(docs, top_k, intent)
 
             # -------------------------------------------------
             # FORMAT RESULTS
@@ -89,18 +129,19 @@ class FranchiseRetriever:
                 results.append({
                     "rank": rank + 1,
                     "text": doc.page_content,
-                    "metadata": doc.metadata
+                    "metadata": doc.metadata,
+                    "source_url": doc.metadata.get("url", "")
                 })
 
             # -------------------------------------------------
             # LANGFUSE LOGGING
             # -------------------------------------------------
             langfuse_client.update_current_span(
-                input={"query": faiss_query, "top_k": top_k},
-                output={"retrieved_chunks": results}
+                input={"query": search_query, "intent": intent, "top_k": top_k},
+                output={"retrieval_strategy": strategy, "retrieved_chunks": results}
             )
 
-            logger.info(f"Retrieved {len(results)} chunks for query: {faiss_query}")
+            logger.info(f"Retrieved {len(results)} chunks for query: {search_query} (Strategy: {strategy})")
             return results
 
         except Exception as e:
@@ -111,14 +152,39 @@ class FranchiseRetriever:
     # POST PROCESSING
     # =====================================================
 
-    def post_process_results(self, docs: List[Document], top_k: int) -> List[Document]:
+    def post_process_results(self, docs: List[Document], top_k: int, intent: str = "general") -> List[Document]:
         seen_texts = set()
+        seen_sections = set()
         unique_docs = []
 
         for doc in docs:
             chunk_text = doc.page_content.strip()
             if not chunk_text or chunk_text in seen_texts:
                 continue
+
+            section = (doc.metadata.get("section", "") or "").strip().lower()
+            subsection = (doc.metadata.get("subsection", "") or "").strip().lower()
+            
+            # --- Intent Filtering ---
+            # Exclude FDD legal terms (ITEM 17, ITEM 23, etc.) for non-FDD queries
+            if intent not in ["fdd_financial", "investment"]:
+                if "item 17" in section or "item 23" in section or "receipts" in section:
+                    continue
+
+            # --- Semantic deduplication ---
+            # Prevent near-duplicate FAQ chunks (e.g., "salary in Oregon" vs "salary in Mississippi")
+            # by deduplicating on section+subsection identity
+            # Normalize common FAQ patterns: "Frequently Asked Questions" sections with 
+            # different state-specific subsections are effectively duplicates
+            if section in ["frequently asked questions", "faqs", "faq"]:
+                # Allow max 1 FAQ chunk per unique subsection pattern
+                # Strip state names to catch "salary of home inspectors in X" duplicates
+                import re
+                normalized_sub = re.sub(r'\b(in|of|for)\s+\w+(\s+\w+)?\??$', '', subsection).strip()
+                faq_key = f"faq::{normalized_sub}"
+                if faq_key in seen_sections:
+                    continue
+                seen_sections.add(faq_key)
 
             seen_texts.add(chunk_text)
             unique_docs.append(doc)

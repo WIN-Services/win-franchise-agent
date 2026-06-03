@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { 
-  View, 
-  FlatList, 
-  StyleSheet, 
-  KeyboardAvoidingView, 
-  Platform, 
+import {
+  View,
+  FlatList,
+  StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
   SafeAreaView,
   StatusBar,
   Text,
@@ -18,7 +18,16 @@ import { sendMessage, clearSession } from '../api/chat';
 
 const ChatScreen = () => {
   const [messages, setMessages] = useState([
-    { id: '1', text: "👋 Hello! Welcome to WIN Home Inspection. I'm your Franchise Assistant. How can I help you explore the WIN opportunity today?", isUser: false }
+    {
+      id: '1',
+      text: "👋 Hello! Welcome to WIN Home Inspection. I'm your Franchise Assistant.\n\nAre you ready to take control of your future, achieve financial freedom, and start your own highly profitable business? Let's find the perfect path for you!\n\nWhich best describes where you are right now?",
+      options: [
+        "🚀 Understand how it works",
+        "⚖️ Compare with other options",
+        "💼 Explore costs & next steps"
+      ],
+      isUser: false
+    }
   ]);
   const [sessionId, setSessionId] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -33,7 +42,7 @@ const ChatScreen = () => {
 
     try {
       const data = await sendMessage(text, sessionId);
-      
+
       // Update session ID if it was just created
       if (!sessionId && data.session_id) {
         setSessionId(data.session_id);
@@ -42,7 +51,7 @@ const ChatScreen = () => {
       // Add agent message to UI
       const agentMsg = { id: (Date.now() + 1).toString(), text: data.answer, isUser: false };
       setMessages(prev => [...prev, agentMsg]);
-      
+
       // Update demographics if returned
       if (data.demographics) {
         setDemographics(data.demographics);
@@ -59,7 +68,16 @@ const ChatScreen = () => {
     if (sessionId) {
       await clearSession(sessionId);
     }
-    setMessages([{ id: '1', text: "👋 Session reset. How can I help you explore the WIN opportunity today?", isUser: false }]);
+    setMessages([{
+      id: '1',
+      text: "👋 Session reset.\n\nAre you ready to take control of your future, achieve financial freedom, and start your own highly profitable business? Let's find the perfect path for you!\n\nWhich best describes where you are right now?",
+      options: [
+        "🚀 Understand how it works",
+        "⚖️ Compare with other options",
+        "💼 Explore costs & next steps"
+      ],
+      isUser: false
+    }]);
     setSessionId(null);
     setDemographics({});
   };
@@ -74,7 +92,7 @@ const ChatScreen = () => {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" />
-      
+
       <View style={styles.header}>
         <View>
           <Text style={styles.headerTitle}>WIN Franchise</Text>
@@ -91,11 +109,29 @@ const ChatScreen = () => {
         ref={flatListRef}
         data={messages}
         keyExtractor={item => item.id}
-        renderItem={({ item }) => <ChatBubble message={item.text} isUser={item.isUser} />}
+        renderItem={({ item }) => (
+          <View>
+            <ChatBubble message={item.text} isUser={item.isUser} />
+            {item.options && (
+              <View style={styles.optionsContainer}>
+                {item.options.map((opt, idx) => (
+                  <TouchableOpacity
+                    key={idx}
+                    style={styles.optionButton}
+                    onPress={() => handleSend(opt)}
+                    disabled={isLoading}
+                  >
+                    <Text style={styles.optionText}>{opt}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
+        )}
         contentContainerStyle={styles.listContent}
       />
 
-      <KeyboardAvoidingView 
+      <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
@@ -136,6 +172,26 @@ const styles = StyleSheet.create({
   listContent: {
     paddingVertical: 10,
     flexGrow: 1,
+  },
+  optionsContainer: {
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+    alignItems: 'flex-start',
+  },
+  optionButton: {
+    backgroundColor: '#e6f2ff',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#0056b3',
+    marginVertical: 4,
+    marginLeft: 8,
+  },
+  optionText: {
+    color: '#0056b3',
+    fontSize: 14,
+    fontWeight: '500',
   },
 });
 

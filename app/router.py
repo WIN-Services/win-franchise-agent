@@ -33,6 +33,7 @@ class ChatResponse(BaseModel):
     session_id: str                    # Always echoed back so client can continue the conversation
     history_length: int                # How many messages are stored for this session
     demographics: Optional[dict] = None
+    persona: str = "exploring"
 
 
 # ---------------------------------------------------------------------------
@@ -52,43 +53,33 @@ async def chat_endpoint(request: ChatRequest, background_tasks: BackgroundTasks)
     # Assign or accept a session ID
     session_id = request.session_id or str(uuid.uuid4())
 
-    # Retrieve existing conversation history for this session
+    # Retrieve existing conversation history, session state, and demographics for this session
     history = conversation_manager.get_history(session_id)
+    session_state = conversation_manager.get_session_state(session_id)
+    demographics = conversation_manager.get_demographics(session_id)
 
     # Store the incoming user message before calling the pipeline
     conversation_manager.add_user_message(session_id, query)
 
     try:
-        result = _orchestrator.run(query=query, history=history)
+        result = _orchestrator.run(
+            query=query, 
+            history=history, 
+            session_state=session_state, 
+            demographics=demographics
+        )
 
-        # Store the assistant reply
+        # Store the assistant reply and the topic
         conversation_manager.add_assistant_message(session_id, result["answer"])
+        conversation_manager.add_topic(session_id, result.get("topic", "general"))
         
         # Update demographics if newly extracted
         if "demographics" in result and result["demographics"]:
             conversation_manager.update_demographics(session_id, result["demographics"])
 
-        # Extract metadata from retrieved chunks
-        retrieved_chunks = result.get("retrieved_chunks", [])
-        chunk_metadatas = [c.get("metadata", {}) for c in retrieved_chunks if isinstance(c, dict)]
-
-        # Log user query and response to AWS SQS asynchronously
-        background_tasks.add_task(
-            sqs_logger.log_interaction,
-            session_id=session_id,
-            query=query,
-            response_answer=result["answer"],
-            demographics=conversation_manager.get_demographics(session_id),
-            sources=result.get("sources", []),
-            history_length=conversation_manager.message_count(session_id),
-            chunk_metadata=chunk_metadatas
-        )
-
-        # Log summary trigger to AWS SQS summary queue asynchronously
-        background_tasks.add_task(
-            sqs_logger.log_summary_trigger,
-            session_id=session_id
-        )
+        # Update persona if newly extracted
+        if "persona" in result and result["persona"]:
+            conversation_manager.update_persona(session_id, result["persona"])
 
         langfuse_client.flush()
 
@@ -97,7 +88,8 @@ async def chat_endpoint(request: ChatRequest, background_tasks: BackgroundTasks)
             "sources": result.get("sources", []),
             "session_id": session_id,
             "history_length": conversation_manager.message_count(session_id),
-            "demographics": conversation_manager.get_demographics(session_id)
+            "demographics": conversation_manager.get_demographics(session_id),
+            "persona": conversation_manager.get_persona(session_id)
         }
 
     except Exception as e:

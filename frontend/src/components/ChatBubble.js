@@ -1,27 +1,63 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Linking, Platform } from 'react-native';
+
+const HoverableLink = ({ text, url }) => {
+  const [isHovered, setIsHovered] = React.useState(false);
+
+  const webProps = Platform.OS === 'web' ? {
+    onMouseEnter: () => setIsHovered(true),
+    onMouseLeave: () => setIsHovered(false),
+  } : {};
+
+  return (
+    <Text 
+      style={[styles.linkText, isHovered && styles.linkHovered]} 
+      onPress={() => Linking.openURL(url)}
+      {...webProps}
+    >
+      {text}
+      {isHovered && Platform.OS === 'web' && (
+        <View style={styles.previewTooltip}>
+          <Text style={styles.previewTooltipText} numberOfLines={1}>{url}</Text>
+          <iframe 
+             src={url} 
+             style={{ width: 250, height: 150, border: 'none', marginTop: 4, borderRadius: 4, backgroundColor: '#fff' }} 
+             title="preview"
+          />
+        </View>
+      )}
+    </Text>
+  );
+};
 
 const ChatBubble = ({ message, isUser }) => {
   const formatMessage = (text) => {
     if (!text) return '';
-    const regex = /\*\*([^\*]+)\*\*/g;
+    const regex = /\*\*([^\*]+)\*\*|\[([^\]]+)\]\(([^)]+)\)/g;
     const parts = [];
     let lastIndex = 0;
     let match;
 
     while ((match = regex.exec(text)) !== null) {
       const matchIndex = match.index;
-      const matchedText = match[1];
 
       if (matchIndex > lastIndex) {
         parts.push(text.substring(lastIndex, matchIndex));
       }
 
-      parts.push(
-        <Text key={`bold-${matchIndex}`} style={styles.boldText}>
-          {matchedText}
-        </Text>
-      );
+      if (match[1]) {
+        // Bold text
+        parts.push(
+          <Text key={`bold-${matchIndex}`} style={styles.boldText}>
+            {match[1]}
+          </Text>
+        );
+      } else if (match[2] && match[3]) {
+        // Markdown Link
+        parts.push(
+          <HoverableLink key={`link-${matchIndex}`} text={match[2]} url={match[3]} />
+        );
+      }
 
       lastIndex = regex.lastIndex;
     }
@@ -189,6 +225,7 @@ const styles = StyleSheet.create({
   agentBubble: {
     backgroundColor: '#f0f0f0',
     borderBottomLeftRadius: 4,
+    zIndex: 1,
   },
   text: {
     fontSize: 16,
@@ -196,6 +233,34 @@ const styles = StyleSheet.create({
   },
   boldText: {
     fontWeight: 'bold',
+  },
+  linkText: {
+    color: '#0056b3',
+    textDecorationLine: 'underline',
+    fontWeight: '500',
+  },
+  linkHovered: {
+    color: '#003d82',
+  },
+  previewTooltip: {
+    position: 'absolute',
+    bottom: 25,
+    left: 0,
+    width: 266,
+    backgroundColor: '#333',
+    padding: 8,
+    borderRadius: 8,
+    zIndex: 9999,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 10,
+  },
+  previewTooltipText: {
+    color: '#fff',
+    fontSize: 10,
+    marginBottom: 2,
   },
   userText: {
     color: '#fff',
