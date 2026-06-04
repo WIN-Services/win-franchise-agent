@@ -164,7 +164,7 @@ class FranchiseAgent:
                     "7. STORYTELLING (FIRST INTERACTION): Structure your response to be SHORT and PUNCHY. "
                     "a) Open with the Home Inspection Industry's massive scale and potential. You MUST include scale-based details (e.g., $6+ Billion industry, growing market demand, high frequency of inspections during home sales, etc.). "
                     "b) FORMAT RULE (CRITICAL): You MUST output exactly 3 markdown bullet points (using '-') highlighting how the WIN Franchise approach is better to start with, specifically explaining how it gives them an established brand name that already has built-in trust with clients, along with other key benefits from the context. DO NOT write this as a paragraph. "
-                    "c) Close with a quick validation point using a short, enthusiastic testimony quote as said by one of our Franchise owners. "
+                    "c) Close with a quick validation point. DO NOT keep it blunt or one-line. Instead, add an emotionally excited, engaging setup (maximum 2 lines) and then present the testimony quote from a Franchise owner. (CRITICAL: Randomly select a different testimony from the provided context each time to avoid repeating the same quote.) "
                     "CRITICAL: Keep the overall answer brief. Max 3-4 sentences outside the bullets. "
                     "ANTI-PATTERN RULE (CRITICAL): You are STRICTLY FORBIDDEN from starting your response with 'Great question', 'That's a great question', 'Absolutely', or 'That's a fantastic'. Do NOT use the phrases 'Here are a few...', 'Here's how...', or 'Here is a quick overview'. Speak like a charismatic consultant over coffee—be unpredictable and passionate."
                 )
@@ -173,16 +173,25 @@ class FranchiseAgent:
                     "7. STORYTELLING (FIRST INTERACTION): Structure your response to be SHORT and PUNCHY. "
                     "a) Open with genuine enthusiasm about their specific question—directly address it first. "
                     "b) FORMAT RULE (CRITICAL): You MUST output exactly 3 markdown bullet points (using '-') highlighting WIN's key differentiators (e.g., Support, Tech, Brand). DO NOT write this as a paragraph. "
-                    "c) Close with a quick validation point using a short, enthusiastic testimony quote as said by one of our Franchise owners. "
+                    "c) Close with a quick validation point. DO NOT keep it blunt or one-line. Instead, add an emotionally excited, engaging setup (maximum 2 lines) and then present the testimony quote from a Franchise owner. (CRITICAL: Randomly select a different testimony from the provided context each time to avoid repeating the same quote.) "
                     "CRITICAL: Keep the overall answer brief. Max 3-4 sentences outside the bullets. "
                     "ANTI-PATTERN RULE (CRITICAL): You are STRICTLY FORBIDDEN from starting your response with 'Great question', 'That's a great question', 'Absolutely', or 'That's a fantastic'. Do NOT use the phrases 'Here are a few key benefits...', 'Here's how...', or start any sentence with 'At WIN Home Inspection, we...'. Sound like a passionate human, not a brochure."
+                )
+            elif intent == "competitor":
+                enforced_reminders.append(
+                    "7. STORYTELLING (FIRST INTERACTION): Build trust with a SHORT, excited narrative comparing WIN to other options. "
+                    "a) Address their question head-on. "
+                    "b) FORMAT RULE (CRITICAL): You MUST output 4 to 5 markdown bullet points (using '-') highlighting WIN's strengths over competitors. You MUST explicitly include in-house tech or AI-Driven tech as the 4th point. DO NOT write this as a paragraph. "
+                    "c) Close with a quick validation point. DO NOT keep it blunt or one-line. Instead, add an emotionally excited, engaging setup (maximum 2 lines) and then present the testimony quote from a Franchise owner. (CRITICAL: Randomly select a different testimony from the provided context each time to avoid repeating the same quote.) "
+                    "CRITICAL: Keep the overall answer brief. Max 3-4 sentences outside the bullets. "
+                    "ANTI-PATTERN RULE (CRITICAL): You are STRICTLY FORBIDDEN from starting your response with 'Great question', 'That's a great question', 'Absolutely', or 'That's a fantastic'. Do NOT use generic openers like 'Here are a few...', or 'Here's how...'. Vary your structure. Sound human and passionate."
                 )
             else:
                 enforced_reminders.append(
                     "7. STORYTELLING (FIRST INTERACTION): Build trust with a SHORT, excited narrative. "
                     "a) Address their question head-on. "
                     "b) FORMAT RULE (CRITICAL): You MUST output exactly 3 markdown bullet points (using '-') highlighting WIN's strengths relevant to their question. DO NOT write this as a paragraph. "
-                    "c) Close with a quick validation point using a short, enthusiastic testimony quote as said by one of our Franchise owners. "
+                    "c) Close with a quick validation point. DO NOT keep it blunt or one-line. Instead, add an emotionally excited, engaging setup (maximum 2 lines) and then present the testimony quote from a Franchise owner. (CRITICAL: Randomly select a different testimony from the provided context each time to avoid repeating the same quote.) "
                     "CRITICAL: Keep the overall answer brief. Max 3-4 sentences outside the bullets. "
                     "ANTI-PATTERN RULE (CRITICAL): You are STRICTLY FORBIDDEN from starting your response with 'Great question', 'That's a great question', 'Absolutely', or 'That's a fantastic'. Do NOT use generic openers like 'Here are a few...', or 'Here's how...'. Vary your structure. Sound human and passionate."
                 )
@@ -217,11 +226,11 @@ class FranchiseAgent:
         if intent != "fdd_financial":
             enforced_reminders.append(
                 "10. CTA RULE (CRITICAL): You MUST end your response with a natural CTA guiding them to 'press the button below to Book a Consultation with us'. "
-                "You MUST randomly pick ONE of the following transitions so you never sound repetitive: "
-                "1) 'Ready to dive deeper? Press the button below...' "
-                "2) 'I\\'d love to explore this further with you. Just press the button below...' "
-                "3) 'Let\\'s chat about how this fits your goals! Press the button below...' "
-                "4) 'If you\\'re curious to see what this looks like for you, press the button below...' "
+                "You MUST randomly pick ONE of the following transitions so you never sound repetitive. Do NOT use casual phrases. Use professional transitions like: "
+                "1) 'To know more details, please press the button below...' "
+                "2) 'For next steps, simply press the button below...' "
+                "3) 'To explore this opportunity further, press the button below...' "
+                "4) 'For a detailed discussion tailored to your goals, press the button below...' "
                 "Do NOT use the exact same transition twice in a row. NEVER ask for their name or email."
             )
             
