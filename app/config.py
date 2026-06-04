@@ -8,19 +8,26 @@ class Settings(BaseSettings):
     VECTOR_DB_PATH: str = "vector_store"
     CHUNK_SIZE: int = 700
     CHUNK_OVERLAP: int = 100
-    TOP_K_RESULTS: int = 25
+    TOP_K_RESULTS: int = 12
     RERANK_MODEL: str = "BAAI/bge-reranker-large"
-    TOP_K_RERANK: int = 7
+    TOP_K_RERANK: int = 6
 
     # ── Token budget controls ─────────────────────────────────────────────
-    MAX_OUTPUT_TOKENS: int = 512          # cap LLM response length
-    MAX_CONTEXT_TOKENS: int = 1500        # max tokens used for retrieved context
+    MAX_OUTPUT_TOKENS: int = 700          # cap LLM response length
+    MAX_CONTEXT_TOKENS: int = 2500        # max tokens used for retrieved context
     MAX_HISTORY_MESSAGES: int = 20        # sliding window per session (10 turns)
 
     # ── Langfuse ──────────────────────────────────────────────────────────
     LANGFUSE_PUBLIC_KEY: str = ""
     LANGFUSE_SECRET_KEY: str = ""
     LANGFUSE_BASE_URL: str = "http://localhost:3000"
+
+    # ── AWS / SQS ─────────────────────────────────────────────────────────
+    AWS_ACCESS_KEY_ID: str = ""
+    AWS_SECRET_ACCESS_KEY: str = ""
+    AWS_REGION_NAME: str = "us-east-1"
+    AWS_SQS_QUEUE_URL: str = ""
+    AWS_SQS_SUMMARY_QUEUE_URL: str = ""
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
