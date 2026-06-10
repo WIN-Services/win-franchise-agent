@@ -2,6 +2,8 @@ from typing import List, Dict, Any
 import logging
 from langfuse import observe
 from langchain_core.documents import Document
+from langchain_openai import ChatOpenAI
+from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_classic.retrievers import EnsembleRetriever
 from langchain_community.retrievers import BM25Retriever
 
@@ -20,6 +22,12 @@ class FranchiseRetriever:
     def __init__(self):
         self.manager = VectorStoreManager()
         self.bm25_retriever = None
+        # Pre-initialize the HyDE LLM once to avoid per-call constructor overhead
+        self._hyde_llm = ChatOpenAI(
+            model="gpt-4o-mini",
+            api_key=settings.OPENAI_API_KEY,
+            temperature=0,
+        )
 
     def _generate_hyde_document(self, query: str) -> str:
         """
@@ -27,19 +35,11 @@ class FranchiseRetriever:
         This provides a highly semantic dense target for FAISS.
         """
         try:
-            from langchain_openai import ChatOpenAI
-            from langchain_core.messages import SystemMessage, HumanMessage
-            
-            llm = ChatOpenAI(
-                model="gpt-4o-mini",
-                api_key=settings.OPENAI_API_KEY,
-                temperature=0,
-            )
             messages = [
                 SystemMessage(content="You are an expert on the WIN Home Inspection franchise. Please write a short, hypothetical document that answers the user's question with precise factual-sounding statements. Do not use conversational filler. This document will be used to search a vector database."),
                 HumanMessage(content=query)
             ]
-            result = llm.invoke(messages)
+            result = self._hyde_llm.invoke(messages)
             return result.content
         except Exception as e:
             logger.exception(f"HyDE generation failed: {e}")

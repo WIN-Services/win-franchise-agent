@@ -1,4 +1,5 @@
 from typing import List, Dict, Any, Tuple, Optional
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from pydantic import BaseModel, Field
@@ -19,13 +20,21 @@ class Demographics(BaseModel):
     state: Optional[str] = Field(None, description="The US State of the prospect if provided (e.g. Texas, Florida, California)")
 
 
+# Pre-warm tiktoken encoder as a module-level singleton to avoid per-call overhead
+_tiktoken_cache: Dict[str, tiktoken.Encoding] = {}
+
+def _get_encoder(model: str = "gpt-4o-mini") -> tiktoken.Encoding:
+    """Returns a cached tiktoken encoder for the given model."""
+    if model not in _tiktoken_cache:
+        try:
+            _tiktoken_cache[model] = tiktoken.encoding_for_model(model)
+        except KeyError:
+            _tiktoken_cache[model] = tiktoken.get_encoding("cl100k_base")
+    return _tiktoken_cache[model]
+
 def _count_tokens(text: str, model: str = "gpt-4o-mini") -> int:
     """Returns the token count for a string using tiktoken."""
-    try:
-        enc = tiktoken.encoding_for_model(model)
-    except KeyError:
-        enc = tiktoken.get_encoding("cl100k_base")
-    return len(enc.encode(text))
+    return len(_get_encoder(model).encode(text))
 
 
 import urllib.parse
@@ -85,6 +94,10 @@ class FranchiseAgent:
             api_key=settings.OPENAI_API_KEY,
             temperature=0,
         ).with_structured_output(Demographics)
+        # Thread pool for running demographics extraction in parallel with main LLM
+        self._executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="agent")
+        # Pre-warm the tiktoken encoder at init time
+        _get_encoder(settings.LLM_MODEL)
 
     @observe(name="generate_response")
     def generate_response(self, 
@@ -112,28 +125,9 @@ class FranchiseAgent:
             model=settings.LLM_MODEL,
         )
 
-        # 2. Extract demographics first to determine lead status
-        extractor_messages = [
-            SystemMessage(content="Extract the user's demographics (Name, Email, Phone, Pin Code, Address, State) from the conversation history. If not present, leave fields null.")
-        ]
-        if len(history) > 0:
-            history_text = "\n".join([f"{m['role']}: {m['content']}" for m in history])
-            extractor_messages.append(HumanMessage(content=f"History:\n{history_text}"))
-        extractor_messages.append(HumanMessage(content=f"Current Query: {query}"))
-        
-        try:
-            demographics_result = self.extractor_llm.invoke(extractor_messages)
-            extracted_demographics_dict = {
-                k: v for k, v in demographics_result.model_dump().items() if v is not None
-            }
-        except Exception:
-            extracted_demographics_dict = {}
-
-        # Merge previously known demographics with newly extracted ones
-        combined_demographics = {**demographics, **extracted_demographics_dict}
-        
-        # We consider a lead complete if they have name and email
-        lead_profile_complete = bool(combined_demographics.get("name") and combined_demographics.get("email"))
+        # 2. Determine lead status from ALREADY-KNOWN demographics (previous turns)
+        #    This avoids blocking on the extractor LLM before the main generation.
+        lead_profile_complete = bool(demographics.get("name") and demographics.get("email"))
 
         # 3. Build the primary response generation prompt
         system_prompt = get_franchise_assistant_prompt(
@@ -141,7 +135,7 @@ class FranchiseAgent:
             query=query, 
             lead_profile_complete=lead_profile_complete, 
             topics_covered=topics_covered,
-            demographics=combined_demographics,
+            demographics=demographics,
             persona=persona,
             phone_collected=phone_collected,
             intent=intent
@@ -159,7 +153,53 @@ class FranchiseAgent:
         # --- PHASE 1: Natural Spice & Conversational Variability ---
         if len(history) == 0:
             # FIRST INTERACTION: Use storytelling to build trust
-            if intent == "process":
+            if intent == "general":
+                enforced_reminders.append(
+                    "7. WIN FRANCHISE OPPORTUNITY (FIRST INTERACTION): The user wants to explore the WIN franchise opportunity. "
+                    "Structure your response to be SHORT, PRECISE, and STRUCTURED for a small chat window. "
+                    "a) Open with 1-2 punchy lines about what makes WIN a unique franchise (NO generic adjectives like 'amazing', 'incredible' — use SPECIFICS). "
+                    "b) FORMAT RULE (CRITICAL): You MUST output exactly 3-4 concise markdown bullet points (using '-') covering: "
+                    "   • What tools & tech WIN provides (e.g., proprietary InspectorTech platform, AI-powered reporting, CRM) "
+                    "   • What training looks like (e.g., 35+ certifications, hands-on mentorship, ongoing coaching) "
+                    "   • The process/model (e.g., low overhead, home-based, 6-week launch timeline) "
+                    "   DO NOT write paragraphs. Keep each bullet to 1 line max. "
+                    "c) Close with a quick franchise owner quote — pick randomly from context. Max 2 lines. "
+                    "CRITICAL: Total response must fit a small chat window. No fluff. Every word earns its place. "
+                    "ANTI-PATTERN RULE (CRITICAL): You are STRICTLY FORBIDDEN from starting your response with 'Great question', 'That's a great question', 'Absolutely', or 'That's a fantastic'. "
+                    "Do NOT use the phrases 'Here are a few key benefits...', 'Here's how...', or start any sentence with 'At WIN Home Inspection, we...'. Sound like a passionate consultant, not a brochure."
+                )
+            elif intent == "investment":
+                enforced_reminders.append(
+                    "7. COSTS & INVESTMENT (FIRST INTERACTION): The user wants to understand costs and investment. "
+                    "Structure your response to be SHORT, PRECISE, and STRUCTURED for a small chat window. "
+                    "a) Open with 1 punchy line framing WIN as a smart, low-risk investment. "
+                    "b) FORMAT RULE (CRITICAL): You MUST render a clean Markdown table showing the cost breakdown from the context. "
+                    "   Keep the table compact — use short column headers. "
+                    "c) After the table, add 2-3 bullet points covering: next steps to move forward, financing options if mentioned in context, and what's included in the investment. "
+                    "d) DO NOT end with a long paragraph. Keep the closing to 1 line max. "
+                    "CRITICAL: Total response must fit a small chat window. Be precise — no filler words. "
+                    "ANTI-PATTERN RULE (CRITICAL): You are STRICTLY FORBIDDEN from starting your response with 'Great question', 'That's a great question', 'Absolutely', or 'That's a fantastic'. "
+                    "Do NOT use generic openers. Sound direct and knowledgeable."
+                )
+            elif intent == "getting_started":
+                enforced_reminders.append(
+                    "7. HOW TO GET STARTED (FIRST INTERACTION): The user wants to know how to start a WIN franchise. "
+                    "Structure your response to be SHORT, PRECISE, and STRUCTURED for a small chat window. "
+                    "a) FIRST — check if the user's state is known (from KNOWN USER INFO). "
+                    "   • If YES: Open with 1 excited line about their state, then give steps. "
+                    "   • If NO: Open with 1 excited line, then ASK: 'Which state are you looking to start in? I'll give you the exact steps for your area.' "
+                    "b) FORMAT RULE (CRITICAL): You MUST output numbered steps (using '1.', '2.', etc.). "
+                    "   Each step MUST be max 5-8 words. Example format: "
+                    "   1. Submit your application online "
+                    "   2. Attend WIN Discovery Day "
+                    "   3. Get approved & sign agreement "
+                    "   4. Complete training & certification "
+                    "   5. Launch your WIN business "
+                    "   NO explanations or paragraphs inside steps. Just crisp action items. "
+                    "c) Total response: 1 intro line + steps + 1 closing line. Nothing more. "
+                    "ANTI-PATTERN RULE (CRITICAL): Do NOT start with 'Great question', 'Absolutely', or 'That's a fantastic'."
+                )
+            elif intent == "process":
                 enforced_reminders.append(
                     "7. STORYTELLING (FIRST INTERACTION): Structure your response to be SHORT and PUNCHY. "
                     "a) Open with the Home Inspection Industry's massive scale and potential. You MUST include scale-based details (e.g., $6+ Billion industry, growing market demand, high frequency of inspections during home sales, etc.). "
@@ -167,15 +207,6 @@ class FranchiseAgent:
                     "c) Close with a quick validation point. DO NOT keep it blunt or one-line. Instead, add an emotionally excited, engaging setup (maximum 2 lines) and then present the testimony quote from a Franchise owner. (CRITICAL: Randomly select a different testimony from the provided context each time to avoid repeating the same quote.) "
                     "CRITICAL: Keep the overall answer brief. Max 3-4 sentences outside the bullets. "
                     "ANTI-PATTERN RULE (CRITICAL): You are STRICTLY FORBIDDEN from starting your response with 'Great question', 'That's a great question', 'Absolutely', or 'That's a fantastic'. Do NOT use the phrases 'Here are a few...', 'Here's how...', or 'Here is a quick overview'. Speak like a charismatic consultant over coffee—be unpredictable and passionate."
-                )
-            elif intent == "general":
-                enforced_reminders.append(
-                    "7. STORYTELLING (FIRST INTERACTION): Structure your response to be SHORT and PUNCHY. "
-                    "a) Open with genuine enthusiasm about their specific question—directly address it first. "
-                    "b) FORMAT RULE (CRITICAL): You MUST output exactly 3 markdown bullet points (using '-') highlighting WIN's key differentiators (e.g., Support, Tech, Brand). DO NOT write this as a paragraph. "
-                    "c) Close with a quick validation point. DO NOT keep it blunt or one-line. Instead, add an emotionally excited, engaging setup (maximum 2 lines) and then present the testimony quote from a Franchise owner. (CRITICAL: Randomly select a different testimony from the provided context each time to avoid repeating the same quote.) "
-                    "CRITICAL: Keep the overall answer brief. Max 3-4 sentences outside the bullets. "
-                    "ANTI-PATTERN RULE (CRITICAL): You are STRICTLY FORBIDDEN from starting your response with 'Great question', 'That's a great question', 'Absolutely', or 'That's a fantastic'. Do NOT use the phrases 'Here are a few key benefits...', 'Here's how...', or start any sentence with 'At WIN Home Inspection, we...'. Sound like a passionate human, not a brochure."
                 )
             elif intent == "competitor":
                 enforced_reminders.append(
@@ -197,17 +228,32 @@ class FranchiseAgent:
                 )
         else:
             # SUBSEQUENT INTERACTIONS: Direct, concise, no story needed
-            enforced_reminders.append(
-                "7. DIRECT ANSWERING (FOLLOW-UP): You have already established rapport. "
-                "Answer the user's specific question DIRECTLY and CONCISELY. No storytelling structure needed. "
-                "Provide highly relevant information strictly matching their intent—do NOT bleed into unrelated topics. "
-                "Keep it tight, conversational, and enthusiastic. 3-5 sentences max unless the question demands more detail. "
-                "ANTI-PATTERN RULE: Do NOT start with 'Great question' or 'Absolutely'."
-            )
+            if intent == "getting_started":
+                # User likely just provided their state — give state-specific steps
+                enforced_reminders.append(
+                    "7. STATE-SPECIFIC GETTING STARTED (FOLLOW-UP): The user has just provided their state. "
+                    "a) Open with 1 excited line about their state as a WIN market. "
+                    "b) FORMAT RULE (CRITICAL): Output numbered steps (1., 2., etc.) — each step MAX 1 short line. "
+                    "   Weave in state-specific licensing/certification from the context. "
+                    "   Example: '4. Complete [State] home inspection licensing (WIN covers training)' "
+                    "   If no state-specific info in context, say WIN's team will guide them through their state's requirements. "
+                    "c) After steps, add 1 line CTA to book consultation for a personalized walkthrough. "
+                    "TOTAL response: 1 intro line + steps + 1 CTA line. No paragraphs. No filler. "
+                    "ANTI-PATTERN: Do NOT give generic steps. Mention the state name in at least 2 steps. "
+                    "Do NOT start with 'Great question' or 'Absolutely'."
+                )
+            else:
+                enforced_reminders.append(
+                    "7. DIRECT ANSWERING (FOLLOW-UP): You have already established rapport. "
+                    "Answer the user's specific question DIRECTLY and CONCISELY. No storytelling structure needed. "
+                    "Provide highly relevant information strictly matching their intent—do NOT bleed into unrelated topics. "
+                    "Keep it tight, conversational, and enthusiastic. 3-5 sentences max unless the question demands more detail. "
+                    "ANTI-PATTERN RULE: Do NOT start with 'Great question' or 'Absolutely'."
+                )
         
         if intent == "competitor":
             enforced_reminders.append(
-                "8. COMPETITOR RULE (CRITICAL): You MUST explicitly state in your response that WIN is the number one ranked franchise in the home inspection industry. Keep your tone consultative and confident, but NEVER be dismissive of competitors. YOU ARE STRICTLY FORBIDDEN from citing, mentioning, or referencing 'Entrepreneur' magazine in any form. If the context contains 'Entrepreneur' (e.g. '#1 Ranked Franchise - Entrepreneur'), you MUST omit the word completely and just say '#1 Ranked Franchise'."
+                "8. COMPETITOR RULE (CRITICAL): You MUST explicitly state in your response that WIN is the number one ranked franchise in the home inspection industry. Keep your tone consultative and confident, but NEVER be dismissive of competitors. Wherever you mention 'Ranked #1 - Entrepreneur' or 'Entrepreneur' magazine, you MUST make the word 'Entrepreneur' bold as well (e.g., Ranked #1 - **Entrepreneur**)."
             )
             enforced_reminders.append(
                 "8a. WIN ADVANTAGE RULE (CRITICAL): When comparing WIN with other options, you MUST refer to and heavily leverage 'The WIN Advantage' points from the context. Present these advantages as very crisp, short bullet points to make the comparison highly impactful and easy to read."
@@ -223,7 +269,15 @@ class FranchiseAgent:
                 "8. INVESTMENT FORMATTING RULE (CRITICAL): When answering questions about costs, fees, or investment, you MUST construct and render a clean, properly formatted Markdown table showing the complete breakdown of the total investment from the provided context. Preserve expenditure names, amount ranges, and values EXACTLY as they appear. Provide a short intro sentence before the table and a seamless transition after it."
             )
         
-        if intent != "fdd_financial":
+        if intent == "getting_started":
+            enforced_reminders.append(
+                "9. GETTING STARTED RULE (CRITICAL): You MUST format the startup journey as numbered steps (1., 2., 3., etc.). "
+                "If the user's state is NOT known, you MUST ask 'Which state are you looking to start in?' before listing steps. "
+                "If the state IS known, weave in state-specific licensing and certification requirements from the context. "
+                "Keep each step to ONE short line. Do NOT write paragraphs."
+            )
+        
+        if intent not in ["fdd_financial", "getting_started"]:
             enforced_reminders.append(
                 "10. CTA RULE (CRITICAL): You MUST end your response with a natural CTA guiding them to 'press the button below to Book a Consultation with us'. "
                 "You MUST randomly pick ONE of the following transitions so you never sound repetitive. Do NOT use casual phrases. Use professional transitions like: "
@@ -264,10 +318,41 @@ class FranchiseAgent:
             }
         )
 
-        # 6. Call the LLM
+        # 6. Run main LLM generation and demographics extraction IN PARALLEL
+        #    Demographics extraction doesn't affect the current response — it only
+        #    updates the stored profile for the *next* turn.
+        def _extract_demographics():
+            """Background task: extract demographics from conversation."""
+            extractor_messages = [
+                SystemMessage(content="Extract the user's demographics (Name, Email, Phone, Pin Code, Address, State) from the conversation history. If not present, leave fields null.")
+            ]
+            if len(history) > 0:
+                history_text = "\n".join([f"{m['role']}: {m['content']}" for m in history])
+                extractor_messages.append(HumanMessage(content=f"History:\n{history_text}"))
+            extractor_messages.append(HumanMessage(content=f"Current Query: {query}"))
+            
+            try:
+                demographics_result = self.extractor_llm.invoke(extractor_messages)
+                return {
+                    k: v for k, v in demographics_result.model_dump().items() if v is not None
+                }
+            except Exception:
+                return {}
+
         try:
+            # Submit both tasks to run concurrently
+            demo_future = self._executor.submit(_extract_demographics)
+            
+            # Main LLM call runs on the current thread (this is the critical path)
             ai_message = self.llm.invoke(messages)
             response_text = ai_message.content
+            
+            # Collect demographics result (should be done by now since main LLM is slower)
+            extracted_demographics_dict = demo_future.result(timeout=10)
+            
+            # Merge previously known demographics with newly extracted ones
+            combined_demographics = {**demographics, **extracted_demographics_dict}
+
             est_output_tokens = _count_tokens(response_text, settings.LLM_MODEL)
 
             langfuse_client.update_current_span(
