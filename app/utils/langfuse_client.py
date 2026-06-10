@@ -37,9 +37,11 @@ PREVIOUS TOPICS DISCUSSED: [{topics_str}]
     persona_instruction = ""
     if intent == "fdd_financial":
         persona_instruction = "\n* FDD REDIRECT (CRITICAL): The user is asking about financials or legal terms. Do NOT provide a persona CTA. Instead, you MUST end your response exactly with: \"For a detailed financial or legal discussion, I'd recommend connecting directly with the WIN franchise team.\""
+    elif intent == "getting_started":
+        persona_instruction = "\n* PERSONA CTA (CRITICAL): The user wants to get started. If their state is NOT known, your CTA is to ask which state they are in. If their state IS known, naturally guide them to the next step (e.g., 'Ready to take the first step? Press the button below to Book a Consultation and we'll walk you through everything for [State].')."
     else:
-        if "explore costs" in query.lower() or "next steps" in query.lower():
-            persona_instruction = "\n* PERSONA CTA (CRITICAL): The user has selected to explore costs and next steps. You MUST end your response by politely asking them these three qualifying questions: 1) 'How soon are you looking to start?' 2) 'Have you set aside a budget for business ownership?' 3) 'Which state or market are you interested in?'"
+        if "costs and investment" in query.lower() or "costs & investment" in query.lower():
+            persona_instruction = "\n* PERSONA CTA (CRITICAL): The user has selected to explore costs and investment. After presenting the cost breakdown, naturally ask 1-2 qualifying questions: 1) 'How soon are you looking to start?' 2) 'Which state or market are you interested in?'"
         elif persona == "ready":
             persona_instruction = "\n* PERSONA CTA (CRITICAL): The user is showing strong intent (Decision Stage). Naturally offer to discuss specific details, see available territories, or talk to someone. For example: 'What would you like next? I can show available territories, provide an investment breakdown, or connect you with someone.' Vary your phrasing naturally."
         elif persona == "comparing":
@@ -146,7 +148,7 @@ YOUR RESPONSE: """
     active_fallback = fdd_fallback_prompt if intent == "fdd_financial" else fallback_prompt
 
     try:
-        langfuse_prompt = langfuse_client.get_prompt("franchise-assistant-prompt", label=label)
+        langfuse_prompt = langfuse_client.get_prompt("franchise-assistant-prompt", label=label, cache_ttl_seconds=300)
         return langfuse_prompt.compile(
             known_info_instruction=known_info_instruction,
             persona_instruction=persona_instruction,

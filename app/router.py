@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 from typing import List, Optional
 import uuid
+import asyncio
 
 from app.utils.langfuse_client import langfuse_client
 from app.orchestrator import Orchestrator
@@ -62,11 +63,14 @@ async def chat_endpoint(request: ChatRequest, background_tasks: BackgroundTasks)
     conversation_manager.add_user_message(session_id, query)
 
     try:
-        result = _orchestrator.run(
-            query=query, 
-            history=history, 
-            session_state=session_state, 
-            demographics=demographics
+        # Offload the synchronous orchestrator to a thread so the event loop
+        # stays free to handle other concurrent requests.
+        result = await asyncio.to_thread(
+            _orchestrator.run,
+            query=query,
+            history=history,
+            session_state=session_state,
+            demographics=demographics,
         )
 
         # Store the assistant reply and the topic

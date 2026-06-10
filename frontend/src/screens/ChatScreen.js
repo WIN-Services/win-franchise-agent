@@ -20,11 +20,11 @@ const ChatScreen = () => {
   const [messages, setMessages] = useState([
     {
       id: '1',
-      text: "👋 Hello! Welcome to WIN Home Inspection. I'm your Franchise Assistant.\n\nAre you ready to take control of your future, achieve financial freedom, and start your own highly profitable business? Let's find the perfect path for you!\n\nWhich best describes where you are right now?",
+      text: "👋 Hi! Welcome to WIN Home Inspection. I'm your Franchise Assistant.\nAre you ready to start your own Highly Profitable Business!\n\nChoose a prompt below to get started.",
       options: [
-        "🚀 Understand how it works",
-        "⚖️ Compare with other options",
-        "💼 Explore costs & next steps"
+        "🔍 Explore WIN Franchise Opportunity",
+        "💰 Costs and Investment",
+        "🚀 How to Get Started"
       ],
       isUser: false
     }
@@ -70,11 +70,11 @@ const ChatScreen = () => {
     }
     setMessages([{
       id: '1',
-      text: "👋 Session reset.\n\nAre you ready to take control of your future, achieve financial freedom, and start your own highly profitable business? Let's find the perfect path for you!\n\nWhich best describes where you are right now?",
+      text: "👋 Hi! Welcome to WIN Home Inspection. I'm your Franchise Assistant.\nAre you ready to start your own Highly Profitable Business!\n\nChoose a prompt below to get started.",
       options: [
-        "🚀 Understand how it works",
-        "⚖️ Compare with other options",
-        "💼 Explore costs & next steps"
+        "🔍 Explore WIN Franchise Opportunity",
+        "💰 Costs and Investment",
+        "🚀 How to Get Started"
       ],
       isUser: false
     }]);

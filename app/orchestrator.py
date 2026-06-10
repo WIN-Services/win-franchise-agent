@@ -26,7 +26,7 @@ from app.agents import FranchiseAgent
 
 class QueryIntent(BaseModel):
     """Extraction model for classifying user intent."""
-    intent: Literal["investment", "fdd_financial", "process", "competitor", "small_talk", "thanks", "employment", "general"] = Field(
+    intent: Literal["investment", "fdd_financial", "process", "getting_started", "competitor", "small_talk", "thanks", "employment", "general"] = Field(
         description="The intent category of the user query."
     )
     topic: str = Field(
@@ -36,6 +36,71 @@ class QueryIntent(BaseModel):
         description="The prospect's persona based on signals. Urgency ('how soon', 'ready to invest') -> ready. Vague ('just looking') -> exploring. Comparison ('compare to AmeriSpec') -> comparing.",
         default="exploring"
     )
+
+
+# ---------------------------------------------------------------------------
+# Quick-reply button mappings – maps exact button text to intent + retrieval
+# ---------------------------------------------------------------------------
+_QUICK_REPLY_MAP = {
+    "🔍 Explore WIN Franchise Opportunity": {
+        "intent": "general",
+        "topic": "WIN franchise opportunity",
+        "persona": "exploring",
+        "retrieval_query": "WIN Home Inspection franchise opportunity tools training process support technology brand what makes WIN different",
+    },
+    "💰 Costs and Investment": {
+        "intent": "investment",
+        "topic": "costs and investment",
+        "persona": "exploring",
+        "retrieval_query": "WIN Home Inspection franchise costs investment fees initial investment total cost breakdown next steps",
+    },
+    "🚀 How to Get Started": {
+        "intent": "getting_started",
+        "topic": "how to get started",
+        "persona": "exploring",
+        "retrieval_query": "WIN Home Inspection franchise steps to get started application process how to start onboarding licensing requirements by state",
+    },
+}
+
+# ---------------------------------------------------------------------------
+# US State names for detecting state-reply follow-ups
+# ---------------------------------------------------------------------------
+_US_STATES = {
+    "alabama", "alaska", "arizona", "arkansas", "california", "colorado",
+    "connecticut", "delaware", "florida", "georgia", "hawaii", "idaho",
+    "illinois", "indiana", "iowa", "kansas", "kentucky", "louisiana",
+    "maine", "maryland", "massachusetts", "michigan", "minnesota",
+    "mississippi", "missouri", "montana", "nebraska", "nevada",
+    "new hampshire", "new jersey", "new mexico", "new york",
+    "north carolina", "north dakota", "ohio", "oklahoma", "oregon",
+    "pennsylvania", "rhode island", "south carolina", "south dakota",
+    "tennessee", "texas", "utah", "vermont", "virginia", "washington",
+    "west virginia", "wisconsin", "wyoming",
+    # Common abbreviations
+    "al", "ak", "az", "ar", "ca", "co", "ct", "de", "fl", "ga",
+    "hi", "id", "il", "in", "ia", "ks", "ky", "la", "me", "md",
+    "ma", "mi", "mn", "ms", "mo", "mt", "ne", "nv", "nh", "nj",
+    "nm", "ny", "nc", "nd", "oh", "ok", "or", "pa", "ri", "sc",
+    "sd", "tn", "tx", "ut", "vt", "va", "wa", "wv", "wi", "wy",
+}
+
+# Abbreviation → full name mapping for canonical state names
+_STATE_ABBREV_TO_FULL = {
+    "al": "Alabama", "ak": "Alaska", "az": "Arizona", "ar": "Arkansas",
+    "ca": "California", "co": "Colorado", "ct": "Connecticut", "de": "Delaware",
+    "fl": "Florida", "ga": "Georgia", "hi": "Hawaii", "id": "Idaho",
+    "il": "Illinois", "in": "Indiana", "ia": "Iowa", "ks": "Kansas",
+    "ky": "Kentucky", "la": "Louisiana", "me": "Maine", "md": "Maryland",
+    "ma": "Massachusetts", "mi": "Michigan", "mn": "Minnesota",
+    "ms": "Mississippi", "mo": "Missouri", "mt": "Montana", "ne": "Nebraska",
+    "nv": "Nevada", "nh": "New Hampshire", "nj": "New Jersey",
+    "nm": "New Mexico", "ny": "New York", "nc": "North Carolina",
+    "nd": "North Dakota", "oh": "Ohio", "ok": "Oklahoma", "or": "Oregon",
+    "pa": "Pennsylvania", "ri": "Rhode Island", "sc": "South Carolina",
+    "sd": "South Dakota", "tn": "Tennessee", "tx": "Texas", "ut": "Utah",
+    "vt": "Vermont", "va": "Virginia", "wa": "Washington",
+    "wv": "West Virginia", "wi": "Wisconsin", "wy": "Wyoming",
+}
 
 # Singleton agent – initialised once per process
 _agent = FranchiseAgent()
@@ -52,24 +117,86 @@ class Orchestrator:
         ).with_structured_output(QueryIntent)
 
     @observe(name="tool_routing")
-    def route(self, query: str, history: list = None, demographics: dict = None) -> Dict[str, Any]:
+    def route(self, query: str, history: list = None, demographics: dict = None, session_state: dict = None) -> Dict[str, Any]:
         """
         Classifies the intent of the query using an LLM and calls the appropriate tool.
         Returns the raw tool output (list of chunks or a fallback dict) along with the topic.
         """
         history = history or []
         demographics = demographics or {}
+        session_state = session_state or {}
         
         langfuse_client.update_current_span(input={"query": query})
 
-        # 1. Determine intent using LLM
+        # ── Quick-reply shortcut ──────────────────────────────────────
+        # If the incoming text exactly matches a preset button, skip
+        # the LLM classifier and use the pre-mapped intent directly.
+        stripped_query = query.strip()
+        quick_reply = _QUICK_REPLY_MAP.get(stripped_query)
+
+        if quick_reply:
+            classified_intent = quick_reply["intent"]
+            topic = quick_reply["topic"]
+            persona = quick_reply["persona"]
+            retrieval_query = quick_reply["retrieval_query"]
+
+            state = demographics.get("state")
+            if state:
+                retrieval_query += f" {state} requirements information"
+
+            tool_name = "retrieve"
+            result = retrieve(query=retrieval_query, intent=classified_intent if classified_intent != "getting_started" else "process")
+            result["classified_intent"] = classified_intent
+            result["topic"] = topic
+            result["persona"] = persona
+
+            langfuse_client.update_current_span(
+                output={"tool_used": tool_name, "classified_intent": classified_intent, "topic": topic, "persona": persona, "result_status": result.get("status"), "quick_reply": True}
+            )
+            return result
+
+        # ── State-reply detection ─────────────────────────────────────
+        # When the bot asked "Which state are you looking to start in?"
+        # and the user replies with just a state name, the LLM classifier
+        # would misclassify it as small_talk/general. Detect this pattern
+        # and force the getting_started intent with state-specific retrieval.
+        topics_covered = session_state.get("topics_covered", [])
+        query_lower = stripped_query.lower().strip(".,!?")
+
+        if query_lower in _US_STATES and "how to get started" in topics_covered:
+            # Resolve to canonical state name
+            detected_state = _STATE_ABBREV_TO_FULL.get(query_lower, stripped_query.title())
+            
+            # Inject state into demographics immediately so it's used THIS turn
+            demographics["state"] = detected_state
+
+            gs_query = (
+                f"WIN Home Inspection franchise steps to get started in {detected_state} "
+                f"application process onboarding licensing certification requirements "
+                f"{detected_state} home inspection license training regulations"
+            )
+
+            tool_name = "retrieve"
+            result = retrieve(query=gs_query, intent="process")
+            result["classified_intent"] = "getting_started"
+            result["topic"] = f"getting started in {detected_state}"
+            result["persona"] = "exploring"
+            result["detected_state"] = detected_state
+
+            langfuse_client.update_current_span(
+                output={"tool_used": tool_name, "classified_intent": "getting_started", "topic": f"getting started in {detected_state}", "result_status": result.get("status"), "state_reply_detected": True}
+            )
+            return result
+
+        # ── LLM-based intent classification ───────────────────────────
         messages = [
             SystemMessage(content=(
                 "You are an intent classifier for a Franchise Chatbot. "
                 "Classify the user's intent into one of the following categories:\n"
                 "- fdd_financial: Questions about the Franchise Disclosure Document (FDD), financials, earnings, revenue, profit, legal terms, legal stipulations, agreements, contracts, termination, royalties, or Item 19.\n"
                 "- investment: Questions about fees, costs, capital, budget, price, affordability (if not specifically FDD/earnings).\n"
-                "- process: Questions about steps, timeline, application, joining, training, licensing, certification, or \"how it works\".\n"
+                "- process: Questions about how the franchise works, the business model, tools, training, support system, or \"how it works\".\n"
+                "- getting_started: Questions about steps to start, timeline, application, joining, onboarding, licensing, certification, or state-specific requirements to begin.\n"
                 "- competitor: Questions comparing WIN to other franchises like Pillar To Post, AmeriSpec, HouseMaster, etc.\n"
                 "- employment: Questions looking for a job, hiring, salary, resume, employment, vacancy, openings, or working for the company as an employee.\n"
                 "- small_talk: Basic greetings (hello, hi, howdy).\n"
@@ -113,9 +240,14 @@ class Orchestrator:
             # Rewrite query to retrieve WIN's USPs instead of competitor data
             usp_query = "Why WIN Home Inspection is the best franchise opportunity USPs advantages strengths " + query + state_suffix
             result = retrieve(query=usp_query, intent="general")
+        elif classified_intent == "getting_started":
+            tool_name = "retrieve"
+            # Retrieve process/onboarding content but keep intent as getting_started
+            gs_query = "WIN Home Inspection franchise steps to get started application process onboarding licensing requirements" + state_suffix
+            result = retrieve(query=gs_query, intent="process")
         else:
             tool_name = "retrieve"
-            result = retrieve(query=query + state_suffix, intent=classified_intent)
+            result = retrieve(query=query + state_suffix, intent=classified_intent if classified_intent != "getting_started" else "process")
 
         result["classified_intent"] = classified_intent
         result["topic"] = topic
@@ -143,10 +275,16 @@ class Orchestrator:
         demographics = demographics or {}
         langfuse_client.update_current_span(input={"query": query, "history_len": len(history), "session_state": session_state})
 
-        # 1. Tool routing
-        tool_result = self.route(query, history=history, demographics=demographics)
+        # 1. Tool routing (pass session_state so route() can detect state-reply follow-ups)
+        tool_result = self.route(query, history=history, demographics=demographics, session_state=session_state)
         current_topic = tool_result.get("topic", "general information")
         new_persona = tool_result.get("persona")
+        
+        # If state-reply detection fired, ensure the detected state is in demographics
+        # so it flows into the agent prompt AND persists via conversation manager
+        if tool_result.get("detected_state"):
+            demographics["state"] = tool_result["detected_state"]
+            session_state["state_detected"] = tool_result["detected_state"]
         
         # Determine effective persona: if intent classifier provides a confident specific persona, persist it
         if new_persona and new_persona in ["ready", "comparing"]:
