@@ -452,6 +452,7 @@ class Orchestrator:
         chunks = tool_result.get("retrieved_chunks", [])
         current_intent = tool_result.get("classified_intent", "general")
         # Determine intent pool and pool ctas
+        turn_count = len(history) // 2
         pool_intent = current_intent if current_intent in ["investment", "getting_started"] else "general"
         
         # Look across all pools and remove the user's query if matched exactly. Also detect if it's a custom query.
