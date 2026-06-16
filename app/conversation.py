@@ -41,7 +41,13 @@ class ConversationManager:
                 "persona": "exploring",
                 "topics_covered": [],
                 "state_detected": None,
-                "phone_collected": False
+                "phone_collected": False,
+                "has_custom_query": False,
+                "cta_pools": {
+                    "general": ["Tools & Technology", "Training Program", "Marketing Support"],
+                    "investment": ["What's Included", "Financing Options", "ROI & Payback"],
+                    "getting_started": ["Licensing Requirements", "Training Timeline", "State Requirements"]
+                }
             }
         return self._session_states[session_id]
 
