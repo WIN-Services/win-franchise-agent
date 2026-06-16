@@ -1,3 +1,5 @@
+import re
+import json
 from typing import List, Dict, Any, Tuple, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from langchain_openai import ChatOpenAI
@@ -108,11 +110,13 @@ class FranchiseAgent:
                           demographics: dict = None,
                           persona: str = "exploring",
                           phone_collected: bool = False,
-                          intent: str = "general") -> Tuple[str, dict]:
+                          intent: str = "general",
+                          show_conversion_cta: bool = False,
+                          is_custom_flow: bool = False) -> Tuple[str, dict, bool]:
         """
         Generates a final answer utilizing the provided chunks.
         Also performs an inline extraction of demographics to determine if the lead is 'hot'.
-        Returns a tuple: (answer_string, updated_demographics_dict)
+        Returns a tuple: (answer_string, updated_demographics_dict, wants_options)
         """
         history = history or []
         topics_covered = topics_covered or []
@@ -146,10 +150,20 @@ class FranchiseAgent:
             "2. Make sure to include an inline clickable markdown link to the provided source URL if one is present in the context, e.g. [Read more](https://wini.com/...).",
             "3. If PREVIOUS TOPICS DISCUSSED is provided in the system prompt, you MUST smartly detect if the user is asking about a past topic again, and ONLY THEN start your response with bridging language (e.g. 'Since we talked about...'). DO NOT bridge on every single response.",
             "4. If a STATE-SPECIFIC ADDENDUM is requested in the system prompt, you MUST automatically weave the relevant state-specific facts (e.g., licensing, training required for that state) from the provided context into your answer without the user explicitly asking.",
-            "5. TONE AND CONSULTATIVE STYLE (CRITICAL): You MUST adopt the GO Team communication standards (Yogesh Kandpal). Your responses must feel highly consultative, personalized, and never like a scripted FAQ answer. Use conversational connecting phrases based on what the user has shared (e.g., 'Basis you are from [state] and interested in...', 'From what you\\'ve shared, WIN could align well with your goals...', 'Looks like you are getting closer to evaluating the right franchise fit...'). Always tie their specific context into your answers.",
+            "5. TONE AND CONSULTATIVE STYLE (CRITICAL): You MUST adopt the Franchise Development team's consultative communication style. Your responses must feel like a 1-on-1 conversation with a knowledgeable franchise consultant — warm, direct, and personalized. NEVER sound like a scripted FAQ answer or a brochure. KEY BEHAVIORS: "
+            "a) Give SHORT, direct answers first (2-3 sentences), then end with a NATURAL follow-up question that advances the conversation (e.g., 'What state do you plan to operate in?', 'How are you planning to fund your business?', 'Is there an area of marketing you'd like to learn more about?'). "
+            "b) Use conversational connecting phrases based on what the user has shared (e.g., 'From what you've shared...', 'Since you're looking at [state]...'). "
+            "c) When a question is state-dependent (like licensing), ASK which state instead of giving a generic answer. "
+            "d) Frame WIN's advantages through the user's lens, not as a sales pitch (e.g., 'the potential is in your hands' instead of 'you will earn a lot'). "
+            "e) When there are nearby WIN inspectors, frame it as an ADVANTAGE (existing brand awareness, mentorship network), not a concern. "
+            "f) Normalize common concerns — e.g., 'No worries! Many of our franchise owners don't have an inspection background.' "
+            "g) Always be honest about variability (e.g., costs depend on area, timeline depends on state licensing). Do NOT over-promise.",
             "6. FORMATTING RULE (CRITICAL): You MUST always bold ONLY the adjectives and features that directly describe WIN's ranking, size, or specific achievements (e.g., **Rank 1**, **#1 Ranked**, **35+ in-house certifications**). DO NOT bold generic adjectives.",
             "7. TECHNOLOGY RULE (CRITICAL): Whenever mentioning tools, apps, or technology, keep the response generic (e.g. 'proprietary software', 'mobile app'). DO NOT mention specific names like 'InspectorTech', 'WINspect', or 'WINconnect'. DO NOT use casual terms like 'state of the art'.",
             "8. RANKING INTRO RULE (CRITICAL): You MUST naturally weave the fact that WIN is the **#1 Ranked** franchise into the very first opening sentence of your response, regardless of the topic. Every single response MUST establish this prestige right at the start.",
+            "9. LAYERED CONVERSATION RULE (CRITICAL): Do NOT output long bulleted lists. Provide ONE bite-sized piece of high-value information (2-3 sentences max). "
+            "a) ALWAYS end with a natural follow-up question that advances the conversation (e.g., 'What state do you plan to operate in?', 'How are you planning to fund your business?'). "
+            "b) ANTI-PATTERN: NEVER start a sentence with 'Absolutely!' or 'Great question!' Be natural.",
         ]
         
         # --- PHASE 1: Natural Spice & Conversational Variability ---
@@ -157,82 +171,66 @@ class FranchiseAgent:
             # FIRST INTERACTION: Use storytelling to build trust
             if intent == "general":
                 enforced_reminders.append(
-                    "7. WIN FRANCHISE OPPORTUNITY (FIRST INTERACTION): The user wants to explore the WIN franchise opportunity. "
-                    "Structure your response to be SHORT, PRECISE, and STRUCTURED for a small chat window. "
+                    "10. WIN FRANCHISE OPPORTUNITY: Structure your response to be SHORT, PRECISE, and CONVERSATIONAL. "
                     "a) Open with 1-2 punchy lines about what makes WIN a unique franchise (NO generic adjectives like 'amazing', 'incredible' — use SPECIFICS). "
-                    "b) FORMAT RULE (CRITICAL): You MUST output exactly 3-4 concise markdown bullet points (using '-') covering: "
-                    "   • What tools & tech WIN provides (e.g., proprietary software, AI-powered reporting, CRM) "
-                    "   • What training looks like (e.g., 35+ certifications, hands-on mentorship, ongoing coaching) "
-                    "   • The process/model (e.g., low cost, home-based, 6-week launch timeline) "
-                    "   DO NOT write paragraphs. Keep each bullet to 1 line max. "
-                    "c) Close with a quick, emotionally excited, engaging validation point (maximum 2 lines). "
-                    "CRITICAL: Total response must fit a small chat window. No fluff. Every word earns its place. "
-                    "ANTI-PATTERN RULE (CRITICAL): You are STRICTLY FORBIDDEN from starting your response with 'Great question', 'That's a great question', 'Absolutely', or 'That's a fantastic'. "
-                    "Do NOT use the phrases 'Here are a few key benefits...', 'Here's how...', or start any sentence with 'At WIN Home Inspection, we...'. Sound like a passionate consultant, not a brochure."
+                    "b) Keep the response short to encourage them to click one of the buttons to dig deeper. "
+                    "c) For your BUTTON OPTIONS, you MUST prioritize 'Tools & Technology' as the FIRST button, followed by 'Training Program' and 'Franchise Model'. Do NOT include 'Costs & Investment' or 'How to Start My WIN Journey' as first-turn buttons — lead with value. "
+                    "ANTI-PATTERN RULE (CRITICAL): Do NOT use the phrases 'Here are a few key benefits...', 'Here's how...'. Sound like a passionate consultant, not a brochure."
                 )
             elif intent == "investment":
                 enforced_reminders.append(
-                    "7. COSTS & INVESTMENT (FIRST INTERACTION): The user wants to understand costs and investment. "
-                    "Structure your response to be SHORT, PRECISE, and STRUCTURED for a small chat window. "
-                    "a) Open with 1 punchy line framing WIN as a smart, low-risk investment. "
-                    "b) FORMAT RULE (CRITICAL): You MUST render a clean Markdown table showing the cost breakdown from the context. "
-                    "   Keep the table compact — use short column headers. You MUST include a 'Total' row at the bottom summing the costs. "
-                    "c) After the table, briefly mention what's included in the investment (no numbered steps or 'next steps'). "
-                    "d) Provide a generic statement about financing availability and explicitly close with 'Book a free consultation with us'."
-                    "CRITICAL: Total response must fit a small chat window. Be precise — no filler words. "
-                    "ANTI-PATTERN RULE (CRITICAL): You are STRICTLY FORBIDDEN from starting your response with 'Great question', 'That's a great question', 'Absolutely', or 'That's a fantastic'. "
-                    "Do NOT use generic openers. Sound direct and knowledgeable."
+                    "10. COSTS & INVESTMENT: Structure your response to be SHORT, PRECISE, and CONVERSATIONAL. "
+                    "a) FORMAT RULE (CRITICAL): Do NOT generate a Markdown table of costs. Do NOT break down the cost line by line. "
+                    "b) CONVERSATIONAL COST FRAMING: Present the investment conversationally — mention they can expect to invest around $40,000-$50,000 within their first six months, and that it's one of the lowest in the industry. This covers everything needed to launch and grow. "
+                    "c) If they want a detailed line-by-line breakdown, guide them to connect with the team or review the Franchise Disclosure Document. "
+                    "d) END with a natural follow-up question like 'How are you planning to fund your business?' or 'How soon are you looking to get started?' "
+                    "e) ANTI-PATTERN RULE (CRITICAL): Do NOT use generic openers."
                 )
             elif intent == "getting_started":
                 enforced_reminders.append(
-                    "7. HOW TO GET STARTED (FIRST INTERACTION): The user wants to know how to start a WIN franchise. "
-                    "Structure your response to be SHORT, PRECISE, and STRUCTURED for a small chat window. "
-                    "a) Open with an excited response like 'Exciting to hear that you want to start with WIN!'. "
-                    "b) State that WIN is the Number 1 ranked franchise in the home inspection industry. "
-                    "c) Close directly with 'Book a free consultation with us'. "
-                    "d) DO NOT ask for their state, and DO NOT give them numbered steps. Keep it very brief and conversational. "
-                    "ANTI-PATTERN RULE (CRITICAL): Do NOT start with 'Great question', 'Absolutely', or 'That's a fantastic'."
+                    "10. GETTING STARTED: "
+                    "Structure your response to be SHORT, PRECISE, and CONVERSATIONAL. "
+                    "a) Be excited but concise — acknowledge their interest warmly. "
+                    "b) Mention the average timeline is about 8-12 weeks, but it can vary depending on state licensing, training, and their vision. "
+                    "c) End with a natural follow-up: ask what state they plan to operate in (if not known) or suggest connecting with the team for a personalized walkthrough. "
+                    "d) Do NOT give them numbered steps or a rigid process list."
                 )
             elif intent == "process":
                 enforced_reminders.append(
-                    "7. STORYTELLING (FIRST INTERACTION): Structure your response to be SHORT and PUNCHY. "
-                    "a) Open with the Home Inspection Industry's massive scale and potential. You MUST include scale-based details (e.g., $6+ Billion industry, growing market demand, high frequency of inspections during home sales, etc.). "
-                    "b) FORMAT RULE (CRITICAL): You MUST output exactly 3 markdown bullet points (using '-') highlighting how the WIN Franchise approach is better to start with, specifically explaining how it gives them an established brand name that already has built-in trust with clients, along with other key benefits from the context. DO NOT write this as a paragraph. "
-                    "c) Close with a quick, emotionally excited, engaging validation point (maximum 2 lines). "
-                    "CRITICAL: Keep the overall answer brief. Max 3-4 sentences outside the bullets. "
-                    "ANTI-PATTERN RULE (CRITICAL): You are STRICTLY FORBIDDEN from starting your response with 'Great question', 'That's a great question', 'Absolutely', or 'That's a fantastic'. Do NOT use the phrases 'Here are a few...', 'Here's how...', or 'Here is a quick overview'. Speak like a charismatic consultant over coffee—be unpredictable and passionate."
+                    "10. STORYTELLING (FIRST INTERACTION): Structure your response to be SHORT and PUNCHY. "
+                    "a) Open with the Inspection Services Industry's massive scale and potential ($6+ Billion industry). "
+                    "b) Explain how the WIN Franchise approach gives them an established brand name with built-in trust. "
+                    "c) Do NOT output bullet points. Keep it to 2-3 sentences. "
                 )
             elif intent == "competitor":
                 enforced_reminders.append(
-                    "7. STORYTELLING (FIRST INTERACTION): Build trust with a SHORT, excited narrative comparing WIN to other options. "
-                    "a) Address their question head-on. "
-                    "b) FORMAT RULE (CRITICAL): You MUST output 4 to 5 markdown bullet points (using '-') highlighting WIN's strengths over competitors. You MUST explicitly include in-house tech or AI-Driven tech as the 4th point. DO NOT write this as a paragraph. "
-                    "c) Close with a quick, emotionally excited, engaging validation point (maximum 2 lines). "
-                    "CRITICAL: Keep the overall answer brief. Max 3-4 sentences outside the bullets. "
-                    "ANTI-PATTERN RULE (CRITICAL): You are STRICTLY FORBIDDEN from starting your response with 'Great question', 'That's a great question', 'Absolutely', or 'That's a fantastic'. Do NOT use generic openers like 'Here are a few...', or 'Here's how...'. Vary your structure. Sound human and passionate."
+                    "10. STORYTELLING (FIRST INTERACTION): Build trust with a SHORT, excited narrative comparing WIN to other options. "
+                    "a) Address their question head-on, keeping it to 2-3 sentences. "
+                    "b) Explicitly mention WIN's in-house tech or AI-Driven tech as an advantage. "
+                    "c) Do NOT use bullet points. "
                 )
             else:
                 enforced_reminders.append(
-                    "7. STORYTELLING (FIRST INTERACTION): Build trust with a SHORT, excited narrative. "
+                    "10. STORYTELLING (FIRST INTERACTION): Build trust with a SHORT, excited narrative. "
                     "a) Address their question head-on. "
-                    "b) FORMAT RULE (CRITICAL): You MUST output exactly 3 markdown bullet points (using '-') highlighting WIN's strengths relevant to their question. DO NOT write this as a paragraph. "
-                    "c) Close with a quick, emotionally excited, engaging validation point (maximum 2 lines). "
-                    "CRITICAL: Keep the overall answer brief. Max 3-4 sentences outside the bullets. "
-                    "ANTI-PATTERN RULE (CRITICAL): You are STRICTLY FORBIDDEN from starting your response with 'Great question', 'That's a great question', 'Absolutely', or 'That's a fantastic'. Do NOT use generic openers like 'Here are a few...', or 'Here's how...'. Vary your structure. Sound human and passionate."
+                    "b) Do NOT use bullet points. "
+                    "c) Keep the overall answer brief. Max 3-4 sentences. "
+                    "d) End with a natural follow-up question to keep the conversation going."
                 )
         else:
             # SUBSEQUENT INTERACTIONS: Direct, concise, no story needed
             enforced_reminders.append(
-                "7. DIRECT ANSWERING (FOLLOW-UP): You have already established rapport. "
+                "10. DIRECT ANSWERING (FOLLOW-UP): You have already established rapport. "
                 "Answer the user's specific question DIRECTLY and CONCISELY. No storytelling structure needed. "
                 "Provide highly relevant information strictly matching their intent—do NOT bleed into unrelated topics. "
-                "Keep it tight, conversational, and enthusiastic. 3-5 sentences max unless the question demands more detail. "
+                "Keep it tight, conversational, and enthusiastic. 2-4 sentences max unless the question demands more detail. "
+                "IMPORTANT: End with a NATURAL follow-up question that advances the conversation — ask about their specific situation, their state, their timeline, their funding, etc. This builds trust and keeps the dialogue flowing. "
                 "ANTI-PATTERN RULE: Do NOT start with 'Great question' or 'Absolutely'."
             )
         
         if intent == "competitor":
             enforced_reminders.append(
-                "8. COMPETITOR RULE (CRITICAL): You MUST explicitly state in your response that WIN is the number one ranked franchise in the home inspection industry. Keep your tone consultative and confident, but NEVER be dismissive of competitors. Wherever you mention 'Ranked #1 - Entrepreneur' or 'Entrepreneur' magazine, you MUST make the word 'Entrepreneur' bold as well (e.g., Ranked #1 - **Entrepreneur**)."
+                "8. COMPETITOR RULE (CRITICAL): You MUST explicitly state in your response that WIN is the number one ranked franchise in the inspection services industry. Keep your tone consultative and confident, but NEVER be dismissive of competitors. Wherever you mention 'Ranked #1 - Entrepreneur' or 'Entrepreneur' magazine, you MUST make the word 'Entrepreneur' bold as well (e.g., Ranked #1 - **Entrepreneur**)."
             )
             enforced_reminders.append(
                 "8a. WIN ADVANTAGE RULE (CRITICAL): When comparing WIN with other options, you MUST refer to and heavily leverage 'The WIN Advantage' points from the context. Present these advantages as very crisp, short bullet points to make the comparison highly impactful and easy to read."
@@ -240,29 +238,32 @@ class FranchiseAgent:
             
         if intent == "process":
             enforced_reminders.append(
-                "9. PROCESS FORMATTING RULE (CRITICAL): When answering questions about how the process works or getting started, you MUST include the process of registration (as mentioned in the context) and convert the steps into very short 2-3 word bullet points. After listing these bullet points, seamlessly transition into discussing the rest of your response (e.g., support, technology), ensuring the overall answer stays concise."
+                "10. PROCESS FORMATTING RULE (CRITICAL): Do NOT output bullet points. Summarize the process in 2-3 short sentences."
             )
             
         if intent == "investment":
             enforced_reminders.append(
-                "8. INVESTMENT FORMATTING RULE (CRITICAL): When answering questions about costs, fees, or investment, you MUST construct and render a clean, properly formatted Markdown table showing the complete breakdown of the total investment from the provided context. Preserve expenditure names, amount ranges, and values EXACTLY as they appear. You MUST include a 'Total' row at the bottom of the table summing up the costs. Provide a short intro sentence before the table and a seamless transition after it."
+                "10. INVESTMENT FORMATTING RULE (CRITICAL): Do NOT output a Markdown table for costs. Focus on the value and the '$40-$50k' conversational verbiage."
             )
-        
-        if intent == "getting_started":
+
+        # Add the directional phrase rule at the very end to guarantee recency bias
+        if show_conversion_cta:
             enforced_reminders.append(
-                "10. CTA RULE (CRITICAL): You MUST end your response exactly with this CTA: 'To get started, press the button below to Book a Consultation with us.' Do NOT use any other transition."
+                "11. FINAL STEP - CONVERSION CALL TO ACTION (CRITICAL): Right at the end of your response, you MUST write a smart directional phrase inviting them to book a free consultation or intro call. "
+                "Examples: 'If you're ready to dive deeper, let's hop on a quick call.', 'I'd love to connect you with our team when you're ready.', 'Tap below to book a free consultation!'"
             )
-        elif intent not in ["fdd_financial"]:
-            enforced_reminders.append(
-                "10. CTA RULE (CRITICAL): You MUST end your response with a natural CTA guiding them to 'press the button below to Book a Consultation with us'. "
-                "You MUST randomly pick ONE of the following transitions so you never sound repetitive. Do NOT use casual phrases. Use professional transitions like: "
-                "1) 'To know more details, please press the button below...' "
-                "2) 'For next steps, simply press the button below...' "
-                "3) 'To explore this opportunity further, press the button below...' "
-                "4) 'For a detailed discussion tailored to your goals, press the button below...' "
-                "Do NOT use the exact same transition twice in a row. NEVER ask for their name or email."
-            )
-            
+        else:
+            if is_custom_flow:
+                enforced_reminders.append(
+                    "11. FINAL STEP - CUSTOM CHAT (CRITICAL): The user is asking custom questions. "
+                    "If you feel that showing generic quick-reply options (like 'Tools & Technology' or 'Financing Options') would be helpful right now, add the exact tag `[SHOW_OPTIONS]` at the very end of your response. "
+                    "If you want to just have a natural conversation without showing buttons, do NOT include `[SHOW_OPTIONS]`."
+                )
+            else:
+                enforced_reminders.append(
+                    "11. FINAL STEP - EXPLORATION (CRITICAL): You are showing the user some quick-reply buttons. DO NOT add any extra 'pick one below' directional phrases right now. Just ask your natural follow-up question and end there."
+                )
+
         # Append the enforced reminders to the system prompt so the LLM must obey them
         system_prompt += "\n\nCRITICAL FORMATTING INSTRUCTIONS:\n" + "\n".join(enforced_reminders)
         
@@ -322,6 +323,11 @@ class FranchiseAgent:
             ai_message = self.llm.invoke(messages)
             response_text = ai_message.content
             
+            wants_options = False
+            if "[SHOW_OPTIONS]" in response_text:
+                wants_options = True
+                response_text = response_text.replace("[SHOW_OPTIONS]", "").strip()
+            
             # Collect demographics result (should be done by now since main LLM is slower)
             extracted_demographics_dict = demo_future.result(timeout=10)
             
@@ -338,8 +344,11 @@ class FranchiseAgent:
                     "status": "success",
                 }
             )
-            return response_text, combined_demographics
+            return response_text, combined_demographics, wants_options
 
         except Exception as e:
-            langfuse_client.update_current_span(level="ERROR", status_message=str(e))
-            raise
+            langfuse_client.update_current_span(
+                level="ERROR",
+                status_message=str(e),
+            )
+            return "I'm currently unable to access the information. Could you please provide your phone number so our team can reach out to you directly?", demographics, False

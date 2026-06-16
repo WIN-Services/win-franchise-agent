@@ -54,11 +54,152 @@ _QUICK_REPLY_MAP = {
         "persona": "exploring",
         "retrieval_query": "WIN Home Inspection franchise costs investment fees initial investment total cost breakdown next steps",
     },
-    "🚀 How to Get Started": {
+    "Costs & Investment": {
+        "intent": "investment",
+        "topic": "costs and investment",
+        "persona": "exploring",
+        "retrieval_query": "WIN Home Inspection franchise costs investment fees initial investment total cost breakdown next steps",
+    },
+    "🚀 How to Start My WIN Journey": {
         "intent": "getting_started",
         "topic": "how to get started",
         "persona": "exploring",
         "retrieval_query": "WIN Home Inspection franchise steps to get started application process how to start onboarding licensing requirements by state",
+    },
+    "Tools & Technology": {
+        "intent": "general",
+        "topic": "tools and technology",
+        "persona": "exploring",
+        "retrieval_query": "WIN Home Inspection proprietary software tools CRM AI-powered reporting technology",
+    },
+    "Training Program": {
+        "intent": "general",
+        "topic": "training",
+        "persona": "exploring",
+        "retrieval_query": "WIN Home Inspection training certifications mentorship coaching",
+    },
+    "Franchise Model": {
+        "intent": "process",
+        "topic": "business model",
+        "persona": "exploring",
+        "retrieval_query": "WIN Home Inspection franchise model business low cost home based timeline",
+    },
+    # --- New varied CTA and exploration button mappings ---
+    "Book a Consultation": {
+        "intent": "getting_started",
+        "topic": "book consultation",
+        "persona": "ready",
+        "retrieval_query": "WIN Home Inspection franchise steps to get started application process onboarding consultation",
+    },
+    "Connect With Our Team": {
+        "intent": "getting_started",
+        "topic": "connect with team",
+        "persona": "ready",
+        "retrieval_query": "WIN Home Inspection franchise team consultation connect next steps application",
+    },
+    "Explore Territories": {
+        "intent": "general",
+        "topic": "territory availability",
+        "persona": "comparing",
+        "retrieval_query": "WIN Home Inspection franchise territory availability coverage area map",
+    },
+    "Territory Availability": {
+        "intent": "general",
+        "topic": "territory availability",
+        "persona": "comparing",
+        "retrieval_query": "WIN Home Inspection franchise territory availability coverage area map",
+    },
+    "Get a Personalized Plan": {
+        "intent": "getting_started",
+        "topic": "personalized plan",
+        "persona": "ready",
+        "retrieval_query": "WIN Home Inspection franchise personalized plan steps to get started onboarding timeline",
+    },
+    "Marketing Support": {
+        "intent": "general",
+        "topic": "marketing support",
+        "persona": "exploring",
+        "retrieval_query": "WIN Home Inspection marketing support SEO paid ads lead generation online scheduler",
+    },
+    "Scalability": {
+        "intent": "general",
+        "topic": "scalability",
+        "persona": "exploring",
+        "retrieval_query": "WIN Home Inspection scalability growth low overhead high return scaling business",
+    },
+    "Financing Options": {
+        "intent": "investment",
+        "topic": "financing",
+        "persona": "exploring",
+        "retrieval_query": "WIN Home Inspection financing options in-house financing financial partners funding",
+    },
+    "Licensing Info": {
+        "intent": "getting_started",
+        "topic": "licensing requirements",
+        "persona": "exploring",
+        "retrieval_query": "WIN Home Inspection licensing requirements state by state home inspector license training",
+    },
+    # --- Investment-specific drill-down buttons ---
+    "What's Included": {
+        "intent": "investment",
+        "topic": "what's included in investment",
+        "persona": "exploring",
+        "retrieval_query": "WIN Home Inspection franchise investment what's included startup cost covers training technology marketing support",
+    },
+    "ROI & Payback": {
+        "intent": "investment",
+        "topic": "ROI and payback timeline",
+        "persona": "comparing",
+        "retrieval_query": "WIN Home Inspection franchise ROI return on investment payback period recoup initial investment timeline",
+    },
+    "Revenue Potential": {
+        "intent": "investment",
+        "topic": "revenue potential",
+        "persona": "comparing",
+        "retrieval_query": "WIN Home Inspection franchise revenue potential earnings income low overhead high return business model",
+    },
+    "Veteran Discounts": {
+        "intent": "investment",
+        "topic": "veteran discounts",
+        "persona": "exploring",
+        "retrieval_query": "WIN Home Inspection franchise veteran discount military first responder incentive",
+    },
+    "Compare Investment": {
+        "intent": "investment",
+        "topic": "investment comparison",
+        "persona": "comparing",
+        "retrieval_query": "WIN Home Inspection franchise investment compare lowest cost industry independent inspector startup cost comparison",
+    },
+    # --- Getting-started-specific drill-down buttons ---
+    "Licensing Requirements": {
+        "intent": "getting_started",
+        "topic": "licensing requirements",
+        "persona": "exploring",
+        "retrieval_query": "WIN Home Inspection licensing requirements state by state home inspector license certification regulations",
+    },
+    "Training Timeline": {
+        "intent": "getting_started",
+        "topic": "training timeline",
+        "persona": "exploring",
+        "retrieval_query": "WIN Home Inspection training program timeline duration self-paced learning live sessions mentorship",
+    },
+    "State Requirements": {
+        "intent": "getting_started",
+        "topic": "state requirements",
+        "persona": "exploring",
+        "retrieval_query": "WIN Home Inspection state specific requirements licensing training regulations certification by state",
+    },
+    "Application Process": {
+        "intent": "getting_started",
+        "topic": "application process",
+        "persona": "ready",
+        "retrieval_query": "WIN Home Inspection franchise application process steps onboarding how to apply join",
+    },
+    "What to Expect": {
+        "intent": "getting_started",
+        "topic": "what to expect",
+        "persona": "exploring",
+        "retrieval_query": "WIN Home Inspection franchise what to expect first year onboarding launch timeline milestones",
     },
 }
 
@@ -310,7 +451,38 @@ class Orchestrator:
         # 3. LLM generation using retrieved chunks
         chunks = tool_result.get("retrieved_chunks", [])
         current_intent = tool_result.get("classified_intent", "general")
-        answer, extracted_demographics = _agent.generate_response(
+        # Determine intent pool and pool ctas
+        pool_intent = current_intent if current_intent in ["investment", "getting_started"] else "general"
+        
+        # Look across all pools and remove the user's query if matched exactly. Also detect if it's a custom query.
+        query_strip = query.strip()
+        matched_cta = False
+        for pool_key, pool in session_state.get("cta_pools", {}).items():
+            if query_strip in pool:
+                pool.remove(query_strip)
+                matched_cta = True
+                break
+        
+        # If the user typed something that didn't match any remaining CTA, they are in the custom flow
+        if not matched_cta and turn_count >= 1:
+            # We check turn_count >= 1 to not immediately flag the first ever message as custom 
+            # unless it's a very specific environment where the first message isn't a CTA click.
+            # Actually, the user starts the chat by sending a first message which is custom usually.
+            # Let's just flag it as custom if it doesn't match any CTA.
+            session_state["has_custom_query"] = True
+                
+        is_custom_flow = session_state.get("has_custom_query", False)
+        pool_ctas = session_state.get("cta_pools", {}).get(pool_intent, [])
+        
+        # Threshold Logic:
+        # Button Flow: show booking button on 3rd response (turn_count >= 2) OR exhausted pool
+        # Custom Flow: show booking button on 2nd response (turn_count >= 1) OR exhausted pool
+        if is_custom_flow:
+            show_conversion_cta = (turn_count >= 1) or (len(pool_ctas) == 0)
+        else:
+            show_conversion_cta = (turn_count >= 2) or (len(pool_ctas) == 0)
+
+        answer, extracted_demographics, wants_options = _agent.generate_response(
             query=query, 
             context_chunks=chunks, 
             history=history,
@@ -318,8 +490,25 @@ class Orchestrator:
             demographics=demographics,
             persona=current_persona,
             phone_collected=session_state["phone_collected"],
-            intent=current_intent
+            intent=current_intent,
+            show_conversion_cta=show_conversion_cta,
+            is_custom_flow=is_custom_flow
         )
+
+        # 3b. Programmatic CTA Options Override
+        options = []
+        if show_conversion_cta:
+            options = ["Book a Free Consultation"]
+        else:
+            if is_custom_flow:
+                # Custom flow: agent smartly decides whether to show the remaining generic options
+                if wants_options:
+                    options = list(pool_ctas)
+                else:
+                    options = []
+            else:
+                # Button flow: always aggressively provide the next options
+                options = list(pool_ctas)
 
         # 4. Build sources from chunk metadata
         seen = set()
@@ -337,6 +526,7 @@ class Orchestrator:
         response_data = {
             "answer": answer,
             "sources": sources,
+            "options": options,
             "demographics": extracted_demographics,
             "retrieved_chunks": chunks,
             "topic": current_topic,

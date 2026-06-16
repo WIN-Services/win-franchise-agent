@@ -24,7 +24,7 @@ const ChatScreen = () => {
       options: [
         "🔍 Explore WIN Franchise Opportunity",
         "💰 Costs and Investment",
-        "🚀 How to Get Started"
+        "🚀 How to Start My WIN Journey"
       ],
       isUser: false
     }
@@ -49,7 +49,12 @@ const ChatScreen = () => {
       }
 
       // Add agent message to UI
-      const agentMsg = { id: (Date.now() + 1).toString(), text: data.answer, isUser: false };
+      const agentMsg = { 
+        id: (Date.now() + 1).toString(), 
+        text: data.answer, 
+        options: data.options || null,
+        isUser: false 
+      };
       setMessages(prev => [...prev, agentMsg]);
 
       // Update demographics if returned
@@ -74,7 +79,7 @@ const ChatScreen = () => {
       options: [
         "🔍 Explore WIN Franchise Opportunity",
         "💰 Costs and Investment",
-        "🚀 How to Get Started"
+        "🚀 How to Start My WIN Journey"
       ],
       isUser: false
     }]);

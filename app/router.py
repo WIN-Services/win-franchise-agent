@@ -33,6 +33,7 @@ class ChatResponse(BaseModel):
     sources: List[Source]
     session_id: str                    # Always echoed back so client can continue the conversation
     history_length: int                # How many messages are stored for this session
+    options: List[str] = []            # Quick-reply button options for frontend
     demographics: Optional[dict] = None
     persona: str = "exploring"
 
@@ -92,6 +93,7 @@ async def chat_endpoint(request: ChatRequest, background_tasks: BackgroundTasks)
             "sources": result.get("sources", []),
             "session_id": session_id,
             "history_length": conversation_manager.message_count(session_id),
+            "options": result.get("options", []),
             "demographics": conversation_manager.get_demographics(session_id),
             "persona": conversation_manager.get_persona(session_id)
         }
