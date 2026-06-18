@@ -90,11 +90,13 @@ class FranchiseAgent:
             api_key=settings.OPENAI_API_KEY,
             temperature=0,
             max_tokens=settings.MAX_OUTPUT_TOKENS,
+            seed=42,
         )
         self.extractor_llm = ChatOpenAI(
             model=settings.LLM_MODEL,
             api_key=settings.OPENAI_API_KEY,
             temperature=0,
+            seed=42,
         ).with_structured_output(Demographics)
         # Thread pool for running demographics extraction in parallel with main LLM
         self._executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="agent")
