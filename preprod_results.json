@@ -1,0 +1,81 @@
+{
+    "investment": {
+        "query": "What is the total investment to open a WIN franchise?",
+        "classified_intent": "investment",
+        "topic": "franchise costs",
+        "answer": "WIN is the **#1 Ranked** franchise in the home inspection industry, and the total investment to open a WIN Home Inspection franchise typically ranges from **$41,200 to $49,800**. This investment covers everything you need to launch and grow your business, making it one of the lowest in the industry. \n\nIf you're looking for a detailed breakdown of costs, I recommend connecting with our team or reviewing the Franchise Disclosure Document. How soon are you looking to get started? If you're ready to dive deeper, let's hop on a quick call!",
+        "options": [
+            "Book a Free Consultation"
+        ]
+    },
+    "fdd_financial": {
+        "query": "What are the royalty fees according to the FDD?",
+        "classified_intent": "fdd_financial",
+        "topic": "royalty fees",
+        "answer": "WIN is proud to be the **#1 Ranked** franchise in the home inspection industry, and understanding the financial structure is key to your success. The ongoing fees typically include royalty and marketing fees, which are calculated as a percentage of your revenue. These fees support essential services like marketing campaigns, technology updates, and continuous training to help your business thrive. \n\nFor a detailed breakdown of the royalty fees and other financial aspects, I recommend requesting our current Franchise Disclosure Document (FDD). What state are you considering for your WIN Home Inspection business?",
+        "options": [
+            "Book a Free Consultation"
+        ]
+    },
+    "process": {
+        "query": "How does the training process work?",
+        "classified_intent": "process",
+        "topic": "training process",
+        "answer": "WIN Home Inspection is the **#1 Ranked** franchise in the home inspection industry, and our training program is designed to set you up for success. It includes a blend of technical home inspection training, business development, and marketing skills, typically lasting several weeks. You'll engage in online coursework, live instruction, and hands-on practice to ensure you're fully prepared.\n\nIf you're curious about specific aspects of the training or have any other questions, I'd love to help! What state do you plan to operate in?",
+        "options": [
+            "Book a Free Consultation"
+        ]
+    },
+    "getting_started": {
+        "query": "What are the steps to get started?",
+        "classified_intent": "getting_started",
+        "topic": "steps to start",
+        "answer": "Starting your journey with WIN, the **#1 Ranked** franchise, is an exciting opportunity! The process typically takes about 8-12 weeks, but it can vary based on state licensing and your personal goals. \n\nYou'll begin by attending a Launchpad event to learn about business ownership, then connect with our team for a one-on-one discussion about your goals and territory. After that, you'll review the Franchise Disclosure Document (FDD) and finalize your partnership by completing a background check and signing the Franchise Agreement.\n\nWhat state do you plan to operate in? If you're ready to dive deeper, let's hop on a quick call!",
+        "options": [
+            "Book a Free Consultation"
+        ]
+    },
+    "competitor": {
+        "query": "How do you compare to Pillar To Post?",
+        "classified_intent": "competitor",
+        "topic": "comparison to Pillar To Post",
+        "answer": "WIN is the **#1 Ranked** franchise in the home inspection services industry, and we stand out from competitors like Pillar To Post in several key ways. \n\n- **Proprietary Technology**: WIN utilizes advanced proprietary software that enhances the inspection process, ensuring consistency and thoroughness, which is a significant advantage over many competitors.\n- **Comprehensive Support**: Our in-house marketing, training, and mentorship programs are designed to help franchise owners succeed from day one, providing a level of support that sets us apart.\n- **Low Start-Up Costs**: WIN offers one of the lowest start-up costs in the industry, making it accessible for aspiring business owners.\n\nThese elements contribute to a more professional and efficient service that clients and real estate agents appreciate. If you're interested in exploring how WIN can help you achieve your business goals, I'd love to connect you with our team when you're ready!",
+        "options": [
+            "Book a Free Consultation"
+        ]
+    },
+    "small_talk": {
+        "query": "Hi, how are you?",
+        "classified_intent": "small_talk",
+        "topic": "greetings",
+        "answer": "Hello! I'm doing great, thank you for asking. I'm excited to share information about WIN, the **#1 Ranked** home inspection franchise in the U.S. How can I assist you today? Are you exploring opportunities in the home inspection industry?",
+        "options": [
+            "Book a Free Consultation"
+        ]
+    },
+    "thanks": {
+        "query": "Thanks for the information",
+        "classified_intent": "thanks",
+        "topic": "gratitude",
+        "answer": "You're welcome! I'm glad you found the information helpful. Since WIN is the **#1 Ranked** home inspection franchise, there's so much potential for aspiring business owners. Is there a specific aspect of WIN or the home inspection industry that you're curious about? If you're ready to dive deeper, let's hop on a quick call!",
+        "options": [
+            "Book a Free Consultation"
+        ]
+    },
+    "employment": {
+        "query": "Are you hiring any inspectors?",
+        "classified_intent": "employment",
+        "topic": "hiring inspectors",
+        "answer": "Thank you for reaching out to WIN! We only provide franchising opportunities here and do not offer employment opportunities. Please check out other job portals for employment openings. We appreciate your interest.",
+        "options": null
+    },
+    "general": {
+        "query": "What kind of marketing support do you provide?",
+        "classified_intent": "general",
+        "topic": "marketing support",
+        "answer": "As the **#1 Ranked** franchise, WIN Home Inspection offers **comprehensive end-to-end marketing support** designed to help you grow and scale your business effectively. This includes a robust in-house marketing team that provides guidance on digital strategies, SEO, social media, and print marketing, ensuring you have the tools to engage your community and build strong relationships with clients.\n\nAdditionally, our marketing toolkit, which ranges from branded materials to a customizable website, is tailored to leave a lasting impression and support your business launch. \n\nWhat specific areas of marketing are you most interested in exploring?",
+        "options": [
+            "Book a Free Consultation"
+        ]
+    }
+}
