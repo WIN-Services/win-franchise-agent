@@ -255,6 +255,7 @@ class Orchestrator:
             model="gpt-4o-mini",
             api_key=settings.OPENAI_API_KEY,
             temperature=0,
+            seed=42,
         ).with_structured_output(QueryIntent)
 
     @observe(name="tool_routing")
