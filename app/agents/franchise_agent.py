@@ -149,6 +149,7 @@ class FranchiseAgent:
         
         enforced_reminders = [
             "1. BRANDING RULE (CRITICAL): You MUST always refer to the business as 'WIN' or 'WIN Home Inspection'. YOU ARE STRICTLY FORBIDDEN from outputting the exact sequence of words 'the franchise' unless it is immediately followed by 'agreement', 'owner', 'team', 'system', or 'fee'. In all other cases, you MUST replace 'the franchise', 'this franchise', or 'the company' with 'WIN'. Furthermore, the word 'WIN' MUST appear naturally at least once in your response. This is an absolute, non-negotiable rule.",
+            "1a. INDUSTRY NAMING RULE (CRITICAL): You are STRICTLY FORBIDDEN from ever using the exact phrase 'Home Inspection Industry' or 'home inspection industry'. Whenever you would normally refer to it, you MUST replace it with 'Inspection Services Industry'. This applies to all responses, everywhere, without exception.",
             "2. Make sure to include an inline clickable markdown link to the provided source URL if one is present in the context, e.g. [Read more](https://wini.com/...).",
             "3. If PREVIOUS TOPICS DISCUSSED is provided in the system prompt, you MUST smartly detect if the user is asking about a past topic again, and ONLY THEN start your response with bridging language (e.g. 'Since we talked about...'). DO NOT bridge on every single response.",
             "4. If a STATE-SPECIFIC ADDENDUM is requested in the system prompt, you MUST automatically weave the relevant state-specific facts (e.g., licensing, training required for that state) from the provided context into your answer without the user explicitly asking.",
@@ -160,7 +161,7 @@ class FranchiseAgent:
             "e) When there are nearby WIN inspectors, frame it as an ADVANTAGE (existing brand awareness, mentorship network), not a concern. "
             "f) Normalize common concerns — e.g., 'No worries! Many of our franchise owners don't have an inspection background.' "
             "g) Always be honest about variability (e.g., costs depend on area, timeline depends on state licensing). Do NOT over-promise.",
-            "6. FORMATTING RULE (CRITICAL): You MUST always bold ONLY the adjectives and features that directly describe WIN's ranking, size, or specific achievements (e.g., **Rank 1**, **#1 Ranked**, **35+ in-house certifications**). DO NOT bold generic adjectives.",
+            "6. FORMATTING RULE (CRITICAL): You MUST always bold ONLY the specific USPs, facts, and features that come directly from the knowledge base (for example, **Ranked #1**, **35+ services**, etc.). DO NOT bold generic adjectives or marketing fluff (e.g., flexible, financial freedom, amazing).",
             "7. TECHNOLOGY RULE (CRITICAL): Whenever mentioning tools, apps, or technology, keep the response generic (e.g. 'proprietary software', 'mobile app'). DO NOT mention specific names like 'InspectorTech', 'WINspect', or 'WINconnect'. DO NOT use casual terms like 'state of the art'.",
             "8. RANKING INTRO RULE (CRITICAL): You MUST naturally weave the fact that WIN is the **#1 Ranked** franchise into the very first opening sentence of your response, regardless of the topic. Every single response MUST establish this prestige right at the start.",
             "9. LAYERED CONVERSATION RULE (CRITICAL): Do NOT output long bulleted lists. Provide ONE bite-sized piece of high-value information (2-3 sentences max). "
@@ -174,10 +175,11 @@ class FranchiseAgent:
             if intent == "general":
                 enforced_reminders.append(
                     "10. WIN FRANCHISE OPPORTUNITY: Structure your response to be SHORT, PRECISE, and CONVERSATIONAL. "
-                    "a) Open with 1-2 punchy lines about what makes WIN a unique franchise (NO generic adjectives like 'amazing', 'incredible' — use SPECIFICS). "
-                    "b) Keep the response short to encourage them to click one of the buttons to dig deeper. "
-                    "c) For your BUTTON OPTIONS, you MUST prioritize 'Tools & Technology' as the FIRST button, followed by 'Training Program' and 'Franchise Model'. Do NOT include 'Costs & Investment' or 'How to Start My WIN Journey' as first-turn buttons — lead with value. "
-                    "ANTI-PATTERN RULE (CRITICAL): Do NOT use the phrases 'Here are a few key benefits...', 'Here's how...'. Sound like a passionate consultant, not a brochure."
+                    "a) Open with 1-2 punchy lines about what makes WIN a unique franchise. "
+                    "b) YOU MUST EXPLICITLY MENTION THESE 4 THINGS: WIN's #1 Ranking, offering 35+ services, our 30-year legacy, and having the largest/unmatchable support team. "
+                    "c) For your BUTTON OPTIONS, you MUST prioritize 'Tools & Technology' as the FIRST button, followed by 'Training Program' and 'Franchise Model'. Do NOT include 'Costs & Investment' or 'How to Start My WIN Journey' as first-turn buttons. "
+                    "d) CLOSING STATEMENT RULE (CRITICAL): Your final closing sentence MUST explicitly list the topics of the buttons below to encourage them to explore further (e.g., 'To explore further, you can tap below to ask me about our Tools & Technology, Training Program, or Franchise Model.'). "
+                    "ANTI-PATTERN RULE: Do NOT use the phrases 'Here are a few key benefits...', 'Here's how...'. Sound like a passionate consultant."
                 )
             elif intent == "investment":
                 enforced_reminders.append(
@@ -330,8 +332,11 @@ class FranchiseAgent:
                 wants_options = True
                 response_text = response_text.replace("[SHOW_OPTIONS]", "").strip()
             
-            # Collect demographics result (should be done by now since main LLM is slower)
-            extracted_demographics_dict = demo_future.result(timeout=10)
+            # Collect demographics result without blocking the fast LLM response
+            try:
+                extracted_demographics_dict = demo_future.result(timeout=0.01)
+            except Exception:
+                extracted_demographics_dict = {}
             
             # Merge previously known demographics with newly extracted ones
             combined_demographics = {**demographics, **extracted_demographics_dict}
