@@ -150,7 +150,17 @@ YOUR RESPONSE: """
     active_fallback = fdd_fallback_prompt if intent == "fdd_financial" else fallback_prompt
 
     try:
-        langfuse_prompt = langfuse_client.get_prompt("franchise-assistant-prompt", label=label, cache_ttl_seconds=300)
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(
+                langfuse_client.get_prompt, 
+                "franchise-assistant-prompt", 
+                label=label, 
+                cache_ttl_seconds=300
+            )
+            # Strict 0.5s timeout to prevent blocking on connection refused
+            langfuse_prompt = future.result(timeout=0.5)
+            
         return langfuse_prompt.compile(
             known_info_instruction=known_info_instruction,
             persona_instruction=persona_instruction,
