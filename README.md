@@ -31,14 +31,14 @@ A production-ready Franchise Chatbot System designed to support Strategic Partne
 
 5. **Run the API**
    ```bash
-   uvicorn app.main:app --reload
+   uvicorn app.main:app --reload --port 9050
    ```
 
 ## Testing the API
-You can test the API by visiting `http://localhost:8000/docs` in your browser, or using curl:
+You can test the API by visiting `http://localhost:9050/docs` in your browser, or using curl:
 
 ```bash
-curl -X POST http://localhost:8000/chat \
+curl -X POST http://localhost:9050/chat \
      -H "Content-Type: application/json" \
      -d '{"query": "What is the franchise cost?"}'
 ```

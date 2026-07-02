@@ -7,7 +7,7 @@ WORKDIR /app
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PORT=9000
+    PORT=9050
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -31,7 +31,7 @@ RUN python -c "from sentence_transformers import CrossEncoder; CrossEncoder('BAA
 COPY . .
 
 # Expose the port that the app runs on
-EXPOSE 9000
+EXPOSE 9050
 
 # Command to run the application
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port 9000"]
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port 9050"]
